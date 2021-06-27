@@ -7,8 +7,9 @@ target_include_directories(polynomials
                            INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(polynomials INTERFACE Eigen3::Eigen)
 
+enable_testing()
 add_subdirectory(thirdparty/doctest)
-
 find_package(Ceres REQUIRED)
 add_executable(test test.cpp)
 target_link_libraries(test polynomials doctest::doctest Ceres::ceres)
+add_test(NAME dense_test COMMAND $<TARGET_FILE:test>)
