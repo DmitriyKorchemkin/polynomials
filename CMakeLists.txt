@@ -6,6 +6,7 @@ add_library(polynomials INTERFACE)
 target_include_directories(polynomials
                            INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(polynomials INTERFACE Eigen3::Eigen)
+set_target_properties(polynomials PROPERTIES CXX_STANDARD 17)
 
 enable_testing()
 add_subdirectory(thirdparty/doctest)
