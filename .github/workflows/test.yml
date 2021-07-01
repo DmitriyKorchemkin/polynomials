@@ -14,8 +14,10 @@ jobs:
     strategy:
       matrix:
         build_type: [ Debug, Release]
+        compiler: [ g++, clang++ ]
     env:
       BUILD_TYPE: ${{ matrix.build_type }}
+      COMPILER: ${{ matrix.compiler }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -27,14 +29,14 @@ jobs:
       - name: deps
         run: |
           grep -R --no-filename -e '^deb' /etc/apt/ | grep -v 'updates\|security\|backports' | grep 'azure\.archive\.ubuntu\.com' | sed 's/^deb/deb-src/g' | sed 's/\[arch.*\]//g' | sort | uniq | sudo tee /etc/apt/sources.list.d/source.list
-          sudo apt update && sudo apt build-dep libceres-dev
+          sudo apt update && sudo apt build-dep libceres-dev && sudo apt install -y clang
           git clone https://github.com/ceres-solver/ceres-solver.git ${{github.workspace}}/ceres-solver
           ccache -s
           cd ${{github.workspace}}/ceres-solver && mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Release -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache && make -j `nproc` && sudo make install
           ccache -s
 
       - name: cmake
-        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_CXX_COMPILER=/usr/bin/${{env.COMPILER}}
 
       - name: build
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
