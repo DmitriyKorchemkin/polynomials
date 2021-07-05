@@ -353,6 +353,30 @@ protected:
 } // namespace Eigen
 
 namespace polynomials {
+template <typename Lhs, typename Rhs> struct polynomial_mul_trait;
+
+template <typename DerivedLhs, typename DerivedRhs>
+struct polynomial_mul_trait<DensePolyBase<DerivedLhs>,
+                            DensePolyBase<DerivedRhs>> {
+  using Lhs = DensePolyBase<DerivedLhs>;
+  using Rhs = DensePolyBase<DerivedRhs>;
+  using Scalar =
+      typename Eigen::ScalarBinaryOpTraits<typename Lhs::Scalar,
+                                           typename Rhs::Scalar>::ReturnType;
+  static constexpr Index DegreeAtCompileTime =
+      Lhs::DegreeAtCompileTime == Eigen::Dynamic ||
+              Rhs::DegreeAtCompileTime == Eigen::Dynamic
+          ? Eigen::Dynamic
+          : Lhs::DegreeAtCompileTime + Rhs::DegreeAtCompileTime;
+  static constexpr Index LowDegreeAtCompileTime =
+      Lhs::LowDegreeAtCompileTime == Eigen::Dynamic ||
+              Rhs::LowDegreeAtCompileTime == Eigen::Dynamic
+          ? Eigen::Dynamic
+          : Lhs::LowDegreeAtCompileTime + Rhs::LowDegreeAtCompileTime;
+
+  using ResultType =
+      DensePoly<Scalar, DegreeAtCompileTime, LowDegreeAtCompileTime>;
+};
 
 template <typename Lhs, typename Rhs> struct polynomial_sum_trait;
 
@@ -510,6 +534,60 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
   return sum;
 }
 
+template <typename DerivedLhs, typename DerivedRhs>
+auto operator*(const DensePolyBase<DerivedLhs> &lhs,
+               const DensePolyBase<DerivedRhs> &rhs) ->
+    typename polynomial_mul_trait<DensePolyBase<DerivedLhs>,
+                                  DensePolyBase<DerivedRhs>>::ResultType {
+  using MulTraits = polynomial_mul_trait<DensePolyBase<DerivedLhs>,
+                                         DensePolyBase<DerivedRhs>>;
+  using Result = typename MulTraits::ResultType;
+  Result res(lhs.degree() + rhs.degree(), lhs.low_degree() + rhs.low_degree());
+
+  if constexpr (MulTraits::DegreeAtCompileTime != Eigen::Dynamic &&
+                MulTraits::LowDegreeAtCompileTime != Eigen::Dynamic) {
+    using Lhs = typename MulTraits::Lhs;
+    using Rhs = typename MulTraits::Rhs;
+    // using Scalar = typename MulTraits::Scalar;
+    constexpr Index tail = Rhs::CoeffsCompileTime;
+    constexpr Index head = Lhs::CoeffsCompileTime - 1;
+    static_assert(tail != Eigen::Dynamic && tail > 0);
+    static_assert(head != Eigen::Dynamic && head >= 0);
+
+    auto &c = res.coeffs();
+    c.template tail<tail>() = rhs.coeffs() * lhs[Lhs::DegreeAtCompileTime];
+    c.template head<head>() =
+        lhs.coeffs().template head<head>() * rhs[Rhs::LowDegreeAtCompileTime];
+
+    constexpr Index mul_rhs_len = Rhs::CoeffsCompileTime - 1;
+    for (Index lhs_degree = Lhs::LowDegreeAtCompileTime;
+         lhs_degree < Lhs::DegreeAtCompileTime; ++lhs_degree) {
+      c.template segment<mul_rhs_len>(lhs_degree - Lhs::LowDegreeAtCompileTime +
+                                      1) +=
+          rhs.coeffs().template tail<mul_rhs_len>() * lhs[lhs_degree];
+    }
+  } else {
+    const Index tail = rhs.total_coeffs();
+    const Index head = lhs.total_coeffs() - 1;
+    POLYNOMIALS_ASSERT(tail != Eigen::Dynamic && tail > 0,
+                       "Invalid multiplication size");
+    POLYNOMIALS_ASSERT(head != Eigen::Dynamic && head >= 0,
+                       "Invalid multiplication size");
+
+    auto &c = res.coeffs();
+    c.tail(tail) = rhs.coeffs() * lhs[lhs.degree()];
+    c.head(head) = rhs.coeffs().head() * lhs[lhs.low_degree()];
+
+    const Index mul_rhs_len = rhs.total_coeffs() - 1;
+    for (Index lhs_degree = lhs.low_degree(); lhs_degree < lhs.degree();
+         ++lhs_degree) {
+      c.segment(lhs_degree - lhs.low_degree() + 1, mul_rhs_len) +=
+          rhs.coeffs().tail(mul_rhs_len) * lhs[lhs_degree];
+    }
+  }
+  return res;
+}
+
 template <typename Derived, typename OtherScalar,
           std::enable_if_t<
               !std::is_base_of_v<DensePolyBase<OtherScalar>, OtherScalar>,
@@ -641,7 +719,10 @@ auto operator-(const DensePolyBase<DerivedLhs> &lhs,
   return sum_like_op<DerivedLhs, DerivedRhs, SubOp>(lhs, rhs);
 }
 
-template <typename Derived, typename OtherScalar>
+template <typename Derived, typename OtherScalar,
+          std::enable_if_t<
+              !std::is_base_of_v<DensePolyBase<OtherScalar>, OtherScalar>,
+              bool> = true>
 auto operator*(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
                                         OtherScalar>::ResultType {
@@ -656,7 +737,10 @@ auto operator*(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
   return res;
 }
 
-template <typename Derived, typename OtherScalar>
+template <typename Derived, typename OtherScalar,
+          std::enable_if_t<
+              !std::is_base_of_v<DensePolyBase<OtherScalar>, OtherScalar>,
+              bool> = true>
 auto operator*(const OtherScalar &rhs, DensePolyBase<Derived> &lhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
                                         OtherScalar>::ResultType {

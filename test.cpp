@@ -15,14 +15,21 @@ template <typename T, int n> struct scalar_type<ceres::Jet<T, n>> {
 
 template <typename T> using scalar_type_t = typename scalar_type<T>::type;
 
-template <typename T> double norm_diff(const T &A, const T &B) {
-  return std::abs(A - B);
+// doctest::Approx is not templated... what a shame
+template <typename T> bool approximately_equal(const T &a, const T &b) {
+  using std::abs;
+  using std::max;
+  using std::sqrt;
+  const T eps = sqrt(std::numeric_limits<T>::epsilon());
+  return abs(a - b) < eps * (T(1.) + max(abs(a), abs(b)));
 }
 
 template <typename T, int N>
-double norm_diff(const ceres::Jet<T, N> &A, const ceres::Jet<T, N> &B) {
-  auto diff = A - B;
-  return std::sqrt(diff.a * diff.a + diff.v.squaredNorm());
+bool approximately_equal(const ceres::Jet<T, N> &a, const ceres::Jet<T, N> &b) {
+  bool equal = approximately_equal(a.a, b.a);
+  for (int i = 0; i < N && equal; ++i)
+    equal &= approximately_equal(a.v[i], b.v[i]);
+  return equal;
 }
 
 std::mt19937 rng(1337);
@@ -67,8 +74,8 @@ TEST_CASE_TEMPLATE("Static quadric", T, float, double, ceres::Jet<float, 5>,
     auto at = Q(x);
     auto mapped_at = QM(x);
     auto real_at = (x * coeffs[2] + coeffs[1]) * x + coeffs[0];
-    CHECK(norm_diff(at, real_at) == doctest::Approx(0.));
-    CHECK(norm_diff(mapped_at, real_at) == doctest::Approx(0.));
+    CHECK(approximately_equal(at, real_at));
+    CHECK(approximately_equal(mapped_at, real_at));
   }
 }
 
@@ -89,8 +96,8 @@ TEST_CASE_TEMPLATE("Jet test", T, ceres::Jet<float, 5>, ceres::Jet<double, 7>) {
     auto at = Q(x);
     auto mapped_at = QM(x);
     auto real_at = (x * coeffs[2] + coeffs[1]) * x + coeffs[0];
-    CHECK(norm_diff(at, real_at) == doctest::Approx(0.));
-    CHECK(norm_diff(mapped_at, real_at) == doctest::Approx(0.));
+    CHECK(approximately_equal(at, real_at));
+    CHECK(approximately_equal(mapped_at, real_at));
   }
 }
 
@@ -115,8 +122,8 @@ TEST_CASE_TEMPLATE("Offset quartic", T, float, double, ceres::Jet<float, 5>,
     auto at = Q(x);
     auto mapped_at = QM(x);
     auto real_at = ((x * coeffs[2] + coeffs[1]) * x + coeffs[0]) * x * x;
-    CHECK(norm_diff(at, real_at) == doctest::Approx(0.));
-    CHECK(norm_diff(mapped_at, real_at) == doctest::Approx(0.));
+    CHECK(approximately_equal(at, real_at));
+    CHECK(approximately_equal(mapped_at, real_at));
   }
 }
 
@@ -141,7 +148,7 @@ TEST_CASE_TEMPLATE("Add same type, same size", T, float, double,
     const auto x = r();
     auto at = sum(x);
     auto real_at = q1(x) + q2(x);
-    CHECK(norm_diff(at, real_at) == doctest::Approx(0.));
+    CHECK(approximately_equal(at, real_at));
   }
 }
 
@@ -168,7 +175,34 @@ TEST_CASE_TEMPLATE("Add same type, mixed size", T, float, double,
     const auto x = r();
     auto at = sum(x);
     auto real_at = q(x) + c(x);
-    CHECK(norm_diff(at, real_at) == doctest::Approx(0.));
+    CHECK(approximately_equal(at, real_at));
+  }
+}
+
+TEST_CASE_TEMPLATE("Mul same type, mixed size", T, float, double,
+                   ceres::Jet<float, 5>, ceres::Jet<double, 7>) {
+  using quadric = polynomials::DensePoly<T, 2>;
+  using cubic = polynomials::DensePoly<T, 3>;
+  using R = Random<T>;
+
+  R r;
+
+  quadric q;
+  cubic c;
+
+  T coeffs1[] = {r(), r(), r()};
+  T coeffs2[] = {r(), r(), r(), r()};
+
+  q.coeffs() << coeffs1[0], coeffs1[1], coeffs1[2];
+  c.coeffs() << coeffs2[0], coeffs2[1], coeffs2[2], coeffs2[3];
+
+  auto mul = q * c;
+
+  for (int i = 0; i < 10; ++i) {
+    const auto x = r();
+    auto at = mul(x);
+    auto real_at = q(x) * c(x);
+    CHECK(approximately_equal(at, real_at));
   }
 }
 
@@ -193,7 +227,7 @@ TEST_CASE_TEMPLATE("Sub same type, same size", T, float, double,
     const auto x = r();
     auto at = sum(x);
     auto real_at = q1(x) - q2(x);
-    CHECK(norm_diff(at, real_at) == doctest::Approx(0.));
+    CHECK(approximately_equal(at, real_at));
   }
 }
 
@@ -220,7 +254,7 @@ TEST_CASE_TEMPLATE("Sub same type, mixed size", T, float, double,
     const auto x = r();
     auto at = sum(x);
     auto real_at = q(x) - c(x);
-    CHECK(norm_diff(at, real_at) == doctest::Approx(0.));
+    CHECK(approximately_equal(at, real_at));
   }
 }
 
@@ -260,13 +294,13 @@ TEST_CASE_TEMPLATE("Scalar operations, same type", T, float, double,
     auto real_at_add = q(x) + mul;
     auto real_at_sub1 = q(x) - mul;
     auto real_at_sub2 = mul - q(x);
-    CHECK(norm_diff(at1, real_at) == doctest::Approx(0.));
-    CHECK(norm_diff(at2, real_at) == doctest::Approx(0.));
-    CHECK(norm_diff(at3, real_at_div) == doctest::Approx(0.));
-    CHECK(norm_diff(at4, real_at_add) == doctest::Approx(0.));
-    CHECK(norm_diff(at5, real_at_add) == doctest::Approx(0.));
-    CHECK(norm_diff(at6, real_at_sub1) == doctest::Approx(0.));
-    CHECK(norm_diff(at7, real_at_sub2) == doctest::Approx(0.));
+    CHECK(approximately_equal(at1, real_at));
+    CHECK(approximately_equal(at2, real_at));
+    CHECK(approximately_equal(at3, real_at_div));
+    CHECK(approximately_equal(at4, real_at_add));
+    CHECK(approximately_equal(at5, real_at_add));
+    CHECK(approximately_equal(at6, real_at_sub1));
+    CHECK(approximately_equal(at7, real_at_sub2));
   }
 }
 
@@ -309,14 +343,22 @@ TEST_CASE_TEMPLATE("Scalar operations, jet + scalar", T, ceres::Jet<float, 5>,
     auto real_at_add = q(x) + mul;
     auto real_at_sub1 = q(x) - mul;
     auto real_at_sub2 = mul - q(x);
-    CHECK(norm_diff(at1, real_at) == doctest::Approx(0.));
-    CHECK(norm_diff(at2, real_at) == doctest::Approx(0.));
-    CHECK(norm_diff(at3, real_at_div) == doctest::Approx(0.));
-    CHECK(norm_diff(at4, real_at_add) == doctest::Approx(0.));
-    CHECK(norm_diff(at5, real_at_add) == doctest::Approx(0.));
-    CHECK(norm_diff(at6, real_at_sub1) == doctest::Approx(0.));
-    CHECK(norm_diff(at7, real_at_sub2) == doctest::Approx(0.));
+    CHECK(approximately_equal(at1, real_at));
+    CHECK(approximately_equal(at2, real_at));
+    CHECK(approximately_equal(at3, real_at_div));
+    CHECK(approximately_equal(at4, real_at_add));
+    CHECK(approximately_equal(at5, real_at_add));
+    CHECK(approximately_equal(at6, real_at_sub1));
+    CHECK(approximately_equal(at7, real_at_sub2));
   }
+}
+
+TEST_CASE("Approx") {
+  CHECK(approximately_equal(0., 0.));
+  CHECK(approximately_equal(0., 1e-9));
+  CHECK(!approximately_equal(0., 1e-6));
+  CHECK(approximately_equal(0.f, 1e-5f));
+  CHECK(!approximately_equal(0.f, 1e-3f));
 }
 
 TEST_CASE("static asserts") {
