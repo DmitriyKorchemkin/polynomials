@@ -1,0 +1,17 @@
+find_package(Ceres REQUIRED)
+
+macro(add_new_test name)
+  set(target test_${name})
+  message(STATUS "TEST TARGET: ${target}")
+  add_executable(${target} ${name}.cpp)
+  target_link_libraries(${target} polynomials doctest::doctest Ceres::ceres)
+  target_compile_options(${target} PRIVATE -Wall -Wextra -Werror --pedantic)
+  add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
+endmacro()
+
+add_new_test(plus_dense)
+add_new_test(minus_dense)
+add_new_test(mul_dense)
+add_new_test(plus_scalar_dense)
+add_new_test(minus_scalar_dense)
+add_new_test(mul_scalar_dense)

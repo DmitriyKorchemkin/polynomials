@@ -89,7 +89,8 @@ template <typename Derived> struct DensePolyBase {
   static constexpr Index CoeffsCompileTime = Derived::CoeffsCompileTime;
   static constexpr Index MaxCoeffsCompileTime = Derived::MaxCoeffsCompileTime;
 
-  template <typename T = Scalar> auto operator()(const T &at) -> OpType<T> {
+  template <typename T = Scalar>
+  auto operator()(const T &at) const -> OpType<T> {
     using Res = OpType<T>;
     const auto &C = coeffs();
 
@@ -108,10 +109,10 @@ template <typename Derived> struct DensePolyBase {
     return result;
   }
 
-  auto &operator[](const Index &i) const { return coeffs()[i - low_degree()]; }
+  auto operator[](const Index &i) const { return coeffs()[i - low_degree()]; }
   auto &operator[](const Index &i) { return coeffs()[i - low_degree()]; }
 
-  auto &coeffs() const { return derived().coeffs(); }
+  const auto &coeffs() const { return derived().coeffs(); }
   auto &coeffs() { return derived().coeffs(); }
 
   constexpr auto low_degree() const {
@@ -431,6 +432,7 @@ struct polynomial_scalar_op_trait<DensePolyBase<Derived>, Rhs> {
 
   using ResultType =
       DensePoly<Scalar, DegreeAtCompileTime, LowDegreeAtCompileTime>;
+  using ResultTypeWithIntercept = DensePoly<Scalar, DegreeAtCompileTime, 0>;
 };
 
 struct AddOp {
@@ -461,6 +463,7 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
   using SumTraits = polynomial_sum_trait<DensePolyBase<DerivedLhs>,
                                          DensePolyBase<DerivedRhs>>;
   using Result = typename SumTraits::ResultType;
+  using ResultScalar = typename Result::Scalar;
   const auto l_deg = lhs.degree();
   const auto r_deg = rhs.degree();
   const auto s_deg = std::max(l_deg, r_deg);
@@ -479,9 +482,19 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
     if constexpr (SumTraits::DegreeAtCompileTime != Eigen::Dynamic) {
       constexpr Index tail_len =
           SumTraits::DegreeAtCompileTime - SumTraits::Lhs::DegreeAtCompileTime;
-      if (tail_len) {
-        s_coeffs.template tail<tail_len>() =
-            op.right_op(r_coeffs.template tail<tail_len>());
+      constexpr Index tail_present =
+          std::min(tail_len, SumTraits::Rhs::CoeffsCompileTime);
+      constexpr Index tail_zero = tail_len - tail_present;
+      if (tail_present) {
+        s_coeffs.template tail<tail_present>() =
+            op.right_op(r_coeffs.template tail<tail_present>())
+                .template cast<ResultScalar>();
+      }
+      if (tail_zero) {
+        constexpr Index tail_zero_base = SumTraits::Lhs::DegreeAtCompileTime -
+                                         SumTraits::LowDegreeAtCompileTime + 1;
+
+        s_coeffs.template segment<tail_zero>(tail_zero_base).setZero();
       }
     } else {
       const Index tail_len = s_deg - r_deg;
@@ -492,9 +505,20 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
     if constexpr (SumTraits::DegreeAtCompileTime != Eigen::Dynamic) {
       constexpr Index tail_len =
           SumTraits::DegreeAtCompileTime - SumTraits::Rhs::DegreeAtCompileTime;
-      if (tail_len) {
-        s_coeffs.template tail<tail_len>() =
-            op.left_op(l_coeffs.template tail<tail_len>());
+      constexpr Index tail_present =
+          std::min(tail_len, SumTraits::Lhs::CoeffsCompileTime);
+      constexpr Index tail_zero = tail_len - tail_present;
+
+      if (tail_present) {
+        s_coeffs.template tail<tail_present>() =
+            op.left_op(l_coeffs.template tail<tail_present>())
+                .template cast<ResultScalar>();
+      }
+      if (tail_zero) {
+        constexpr Index tail_zero_base = SumTraits::Rhs::DegreeAtCompileTime -
+                                         SumTraits::LowDegreeAtCompileTime + 1;
+
+        s_coeffs.template segment<tail_zero>(tail_zero_base).setZero();
       }
     } else {
       const Index tail_len = s_deg - l_deg;
@@ -506,9 +530,16 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
     if constexpr (SumTraits::LowDegreeAtCompileTime != Eigen::Dynamic) {
       constexpr Index head_len = SumTraits::Lhs::LowDegreeAtCompileTime -
                                  SumTraits::LowDegreeAtCompileTime;
-      if (head_len) {
-        s_coeffs.template head<head_len>() =
-            op.right_op(r_coeffs.template head<head_len>());
+      constexpr Index head_present_len =
+          std::min(head_len, SumTraits::Rhs::CoeffsCompileTime);
+      constexpr Index head_zero_len = head_len - head_present_len;
+      if (head_present_len) {
+        s_coeffs.template head<head_present_len>() =
+            op.right_op(r_coeffs.template head<head_present_len>())
+                .template cast<ResultScalar>();
+      }
+      if (head_zero_len) {
+        s_coeffs.template segment<head_zero_len>(head_present_len).setZero();
       }
     } else {
       const Index head_len = l_low_deg - s_low_deg;
@@ -519,9 +550,16 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
     if constexpr (SumTraits::LowDegreeAtCompileTime != Eigen::Dynamic) {
       constexpr Index head_len = SumTraits::Rhs::LowDegreeAtCompileTime -
                                  SumTraits::LowDegreeAtCompileTime;
-      if (head_len) {
-        s_coeffs.template head<head_len>() =
-            op.left_op(l_coeffs.template head<head_len>());
+      constexpr Index head_present_len =
+          std::min(head_len, SumTraits::Lhs::CoeffsCompileTime);
+      constexpr Index head_zero_len = head_len - head_present_len;
+      if (head_present_len) {
+        s_coeffs.template head<head_present_len>() =
+            op.left_op(l_coeffs.template head<head_present_len>())
+                .template cast<ResultScalar>();
+      }
+      if (head_zero_len) {
+        s_coeffs.template segment<head_zero_len>(head_present_len).setZero();
       }
     } else {
       const Index head_len = r_low_deg - s_low_deg;
@@ -537,8 +575,9 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
                                         SumTraits::Rhs::DegreeAtCompileTime);
     constexpr Index mid_len = mid_high - mid_low + 1;
 
-    if (mid_len) {
-      s_coeffs.template segment<mid_len>(mid_low) =
+    if constexpr (mid_len > 0) {
+      s_coeffs.template segment<mid_len>(mid_low -
+                                         SumTraits::LowDegreeAtCompileTime) =
           op(l_coeffs.template segment<mid_len>(
                  mid_low - SumTraits::Lhs::LowDegreeAtCompileTime),
              r_coeffs.template segment<mid_len>(
@@ -548,9 +587,11 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
     const Index mid_low = std::max(l_low_deg, r_low_deg);
     const Index mid_high = std::min(l_deg, r_deg);
     const Index mid_len = mid_high - mid_low + 1;
-    s_coeffs.segment(mid_low, mid_len) =
-        op(l_coeffs.segment(mid_low - l_low_deg, mid_len),
-           r_coeffs.segment(mid_low - r_low_deg, mid_len));
+    if (mid_len > 0) {
+      s_coeffs.segment(mid_low, mid_len) =
+          op(l_coeffs.segment(mid_low - l_low_deg, mid_len),
+             r_coeffs.segment(mid_low - r_low_deg, mid_len));
+    }
   }
   return sum;
 }
@@ -615,12 +656,11 @@ template <typename Derived, typename OtherScalar,
               bool> = true>
 auto operator+(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
-                                        OtherScalar>::ResultType {
+                                        OtherScalar>::ResultTypeWithIntercept {
   using OpTraits =
       polynomial_scalar_op_trait<DensePolyBase<Derived>, OtherScalar>;
   using ResultBase = typename OpTraits::ResultType;
-  using Result = DensePoly<typename ResultBase::Scalar,
-                           ResultBase::DegreeAtCompileTime, 0>;
+  using Result = typename OpTraits::ResultTypeWithIntercept;
 
   const auto deg = lhs.degree();
   Result res(deg);
@@ -628,14 +668,16 @@ auto operator+(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     constexpr Index tail_size = OpTraits::Poly::CoeffsCompileTime;
     constexpr Index deg = OpTraits::Poly::DegreeAtCompileTime;
     constexpr Index head_size = deg + 1 - tail_size;
-    res.coeffs().template tail<tail_size>() = lhs.coeffs();
+    res.coeffs().template tail<tail_size>() =
+        lhs.coeffs().template cast<typename ResultBase::Scalar>();
     if (head_size) {
       res.coeffs().template head<head_size>().setZero();
     }
   } else {
     const Index tail_size = lhs.total_coeffs();
     const Index head_size = deg + 1 - tail_size;
-    res.coeffs().tail(tail_size) = lhs.coeffs();
+    res.coeffs().tail(tail_size) =
+        lhs.coeffs().template cast<typename ResultBase::Scalar>();
     if (head_size) {
       res.coeffs().head(head_size).setZero();
     }
@@ -650,7 +692,7 @@ template <typename Derived, typename OtherScalar,
               bool> = true>
 auto operator+(const OtherScalar &rhs, const DensePolyBase<Derived> &lhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
-                                        OtherScalar>::ResultType {
+                                        OtherScalar>::ResultTypeWithIntercept {
   return lhs + rhs;
 }
 
@@ -660,12 +702,11 @@ template <typename Derived, typename OtherScalar,
               bool> = true>
 auto operator-(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
-                                        OtherScalar>::ResultType {
+                                        OtherScalar>::ResultTypeWithIntercept {
   using OpTraits =
       polynomial_scalar_op_trait<DensePolyBase<Derived>, OtherScalar>;
   using ResultBase = typename OpTraits::ResultType;
-  using Result = DensePoly<typename ResultBase::Scalar,
-                           ResultBase::DegreeAtCompileTime, 0>;
+  using Result = typename OpTraits::ResultTypeWithIntercept;
 
   const auto deg = lhs.degree();
   Result res(deg);
@@ -673,14 +714,16 @@ auto operator-(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     constexpr Index tail_size = OpTraits::Poly::CoeffsCompileTime;
     constexpr Index deg = OpTraits::Poly::DegreeAtCompileTime;
     constexpr Index head_size = deg + 1 - tail_size;
-    res.coeffs().template tail<tail_size>() = lhs.coeffs();
+    res.coeffs().template tail<tail_size>() =
+        lhs.coeffs().template cast<typename ResultBase::Scalar>();
     if (head_size) {
       res.coeffs().template head<head_size>().setZero();
     }
   } else {
     const Index tail_size = lhs.total_coeffs();
     const Index head_size = deg + 1 - tail_size;
-    res.coeffs().tail(tail_size) = lhs.coeffs();
+    res.coeffs().tail(tail_size) =
+        lhs.coeffs().template cast<typename ResultBase::Scalar>();
     if (head_size) {
       res.coeffs().head(head_size).setZero();
     }
@@ -695,12 +738,11 @@ template <typename Derived, typename OtherScalar,
               bool> = true>
 auto operator-(const OtherScalar &rhs, const DensePolyBase<Derived> &lhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
-                                        OtherScalar>::ResultType {
+                                        OtherScalar>::ResultTypeWithIntercept {
   using OpTraits =
       polynomial_scalar_op_trait<DensePolyBase<Derived>, OtherScalar>;
   using ResultBase = typename OpTraits::ResultType;
-  using Result = DensePoly<typename ResultBase::Scalar,
-                           ResultBase::DegreeAtCompileTime, 0>;
+  using Result = typename OpTraits::ResultTypeWithIntercept;
 
   const auto deg = lhs.degree();
   Result res(deg);
@@ -708,14 +750,16 @@ auto operator-(const OtherScalar &rhs, const DensePolyBase<Derived> &lhs) ->
     constexpr Index tail_size = OpTraits::Poly::CoeffsCompileTime;
     constexpr Index deg = OpTraits::Poly::DegreeAtCompileTime;
     constexpr Index head_size = deg + 1 - tail_size;
-    res.coeffs().template tail<tail_size>() = -lhs.coeffs();
+    res.coeffs().template tail<tail_size>() =
+        (-lhs.coeffs()).template cast<typename ResultBase::Scalar>();
     if (head_size) {
       res.coeffs().template head<head_size>().setZero();
     }
   } else {
     const Index tail_size = lhs.total_coeffs();
     const Index head_size = deg + 1 - tail_size;
-    res.coeffs().tail(tail_size) = -lhs.coeffs();
+    res.coeffs().tail(tail_size) =
+        (-lhs.coeffs()).template cast<typename ResultBase::Scalar>();
     if (head_size) {
       res.coeffs().head(head_size).setZero();
     }
@@ -762,7 +806,7 @@ template <typename Derived, typename OtherScalar,
           std::enable_if_t<
               !std::is_base_of_v<DensePolyBase<OtherScalar>, OtherScalar>,
               bool> = true>
-auto operator*(const OtherScalar &rhs, DensePolyBase<Derived> &lhs) ->
+auto operator*(const OtherScalar &rhs, const DensePolyBase<Derived> &lhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
                                         OtherScalar>::ResultType {
   return lhs * rhs;
