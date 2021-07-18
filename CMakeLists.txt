@@ -28,6 +28,12 @@ target_include_directories(polynomials
                            INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(polynomials INTERFACE Eigen3::Eigen)
 target_compile_features(polynomials INTERFACE cxx_std_17)
+target_compile_options(polynomials INTERFACE -ftemplate-backtrace-limit=0)
+
+option(POLYNOMIALS_INITIALIZE_NAN "Propagate nan-initialization via interface" OFF)
+if (${POLYNOMIALS_INITIALIZE_NAN})
+  target_compile_definitions(polynomials INTERFACE -DEIGEN_INITIALIZE_MATRICES_BY_NAN)
+endif()
 
 enable_testing()
 add_subdirectory(tests)
