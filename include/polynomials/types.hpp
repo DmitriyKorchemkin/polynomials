@@ -20,15 +20,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ******************************************************************************/
 
-#include "testing.hpp"
+#ifndef POLYNOMIALS_TYPES_HPP
+#define POLYNOMIALS_TYPES_HPP
 
-TEST_CASE("Dense operator+") {
-  DegreeIterator<PlusTest, double, double, double, 0, 3, 5>().test();
-  DegreeIterator<PlusTest, double, double, ceres::Jet<double, 4>, 0, 3, 5>()
-      .test();
-  DegreeIterator<PlusTest, double, ceres::Jet<double, 4>, double, 0, 3, 5>()
-      .test();
-  DegreeIterator<PlusTest, double, ceres::Jet<double, 4>, ceres::Jet<double, 4>,
-                 0, 3, 5>()
-      .test();
-}
+#include <Eigen/Dense>
+
+namespace polynomials {
+
+using Index = Eigen::Index;
+constexpr Index Dynamic = Eigen::Dynamic;
+
+template <typename Derived> struct DensePolyBase;
+
+template <typename T, Index DegreeAtCompileTime,
+          Index LowDegreeAtCompileTime = 0,
+          Index MaxDegreeAtCompileTime = DegreeAtCompileTime, int Options = 0>
+struct DensePoly;
+
+} // namespace polynomials
+
+#endif

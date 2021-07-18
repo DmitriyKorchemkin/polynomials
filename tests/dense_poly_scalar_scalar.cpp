@@ -20,15 +20,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ******************************************************************************/
 
-#include "testing.hpp"
+#include "dense_scalar_tests.hpp"
 
-TEST_CASE("Dense operator-") {
-  DegreeIterator<MinusTest, double, double, double, 0, 3, 5>().test();
-  DegreeIterator<MinusTest, double, double, ceres::Jet<double, 4>, 0, 3, 5>()
-      .test();
-  DegreeIterator<MinusTest, double, ceres::Jet<double, 4>, double, 0, 3, 5>()
-      .test();
-  DegreeIterator<MinusTest, double, ceres::Jet<double, 4>,
-                 ceres::Jet<double, 4>, 0, 3, 5>()
-      .test();
-}
+using jet = JetType<double>;
+
+#define TEST(T, L, R)                                                          \
+  TEST_CASE("(polynomial op scalar)(scalar) " #T) {                            \
+    CHECK(PolyScalarScalarTest<T, double, double>::Check());                   \
+  }
+
+TEST(PlusScalarTest, LHS_TYPE, RHS_TYPE)
+TEST(MinusScalarTest, LHS_TYPE, RHS_TYPE)
+TEST(MulScalarTest, LHS_TYPE, RHS_TYPE)

@@ -25,12 +25,16 @@ SOFTWARE.
 #include <stdexcept>
 
 #ifndef NDEBUG
+#include <sstream>
 #define POLYNOMIALS_ASSERT(what, why)                                          \
   do {                                                                         \
-    if (!(what))                                                               \
-      throw std::runtime_error(std::string(__FILE__) + ":" +                   \
-                               std::to_string(__LINE__) + ": " + why);         \
-  } while (false);
+    if ((what))                                                                \
+      continue;                                                                \
+    std::stringstream ss;                                                      \
+    ss << why;                                                                 \
+    throw std::runtime_error(std::string(__FILE__) + ":" +                     \
+                             std::to_string(__LINE__) + ": " + ss.str());      \
+  } while (false)
 #else
 #define POLYNOMIALS_ASSERT(...)
 #endif

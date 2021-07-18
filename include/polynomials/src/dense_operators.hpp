@@ -23,9 +23,14 @@ SOFTWARE.
 #ifndef POLYNOMIALS_DENSE_OPERATORS_HPP
 #define POLYNOMIALS_DENSE_OPERATORS_HPP
 
+#include <Eigen/Dense>
 #include <iosfwd>
 
+#include "polynomials/assert.hpp"
+#include "polynomials/types.hpp"
+
 namespace polynomials {
+
 template <typename Lhs, typename Rhs> struct polynomial_mul_trait;
 
 template <typename DerivedLhs, typename DerivedRhs>
@@ -37,14 +42,14 @@ struct polynomial_mul_trait<DensePolyBase<DerivedLhs>,
       typename Eigen::ScalarBinaryOpTraits<typename Lhs::Scalar,
                                            typename Rhs::Scalar>::ReturnType;
   static constexpr Index DegreeAtCompileTime =
-      Lhs::DegreeAtCompileTime == Eigen::Dynamic ||
-              Rhs::DegreeAtCompileTime == Eigen::Dynamic
-          ? Eigen::Dynamic
+      (Lhs::DegreeAtCompileTime == Dynamic ||
+       Rhs::DegreeAtCompileTime == Dynamic)
+          ? Dynamic
           : Lhs::DegreeAtCompileTime + Rhs::DegreeAtCompileTime;
   static constexpr Index LowDegreeAtCompileTime =
-      Lhs::LowDegreeAtCompileTime == Eigen::Dynamic ||
-              Rhs::LowDegreeAtCompileTime == Eigen::Dynamic
-          ? Eigen::Dynamic
+      (Lhs::LowDegreeAtCompileTime == Dynamic ||
+       Rhs::LowDegreeAtCompileTime == Dynamic)
+          ? Dynamic
           : Lhs::LowDegreeAtCompileTime + Rhs::LowDegreeAtCompileTime;
 
   using ResultType =
@@ -68,6 +73,8 @@ struct polynomial_sum_trait<DensePolyBase<DerivedLhs>,
 
   using ResultType =
       DensePoly<Scalar, DegreeAtCompileTime, LowDegreeAtCompileTime>;
+
+  static constexpr Index CoeffsCompileTime = ResultType::CoeffsCompileTime;
 };
 
 struct AddOp {
@@ -90,6 +97,347 @@ struct SubOp {
   }
 };
 
+template <typename Lhs, typename Rhs, typename Op,
+          bool constsize =
+              polynomial_sum_trait<Lhs, Rhs>::CoeffsCompileTime != Dynamic>
+struct SumLikeOpImpl;
+
+// static-sized version
+template <typename Result, typename Lhs, typename Rhs, typename Op,
+          bool from_lhs>
+struct HeadOp;
+
+template <typename Result, typename Lhs, typename Rhs, typename Op,
+          bool from_lhs>
+struct TailOp;
+
+template <typename Result, typename Lhs, typename Rhs, typename Op,
+          bool has_intersection>
+struct MidOp;
+
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct HeadOp<Result, Lhs, Rhs, Op, false> {
+  using ResultScalar = typename Result::Scalar;
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    (void)lhs;
+    static_assert(Rhs::LowDegreeAtCompileTime ==
+                  Result::LowDegreeAtCompileTime);
+    constexpr Index min_low_degree = Rhs::LowDegreeAtCompileTime;
+    constexpr Index max_low_degree = Lhs::LowDegreeAtCompileTime;
+    constexpr Index head_len = max_low_degree - min_low_degree;
+    constexpr Index head_available = std::min(Rhs::CoeffsCompileTime, head_len);
+
+    static_assert(head_available >= 0);
+    if (head_available == 0)
+      return;
+
+    res.coeffs().template head<head_available>() =
+        op.right_op(rhs.coeffs())
+            .template head<head_available>()
+            .template cast<ResultScalar>();
+  }
+};
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct HeadOp<Result, Lhs, Rhs, Op, true> {
+  using ResultScalar = typename Result::Scalar;
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    (void)rhs;
+    static_assert(Lhs::LowDegreeAtCompileTime ==
+                  Result::LowDegreeAtCompileTime);
+    constexpr Index min_low_degree = Lhs::LowDegreeAtCompileTime;
+    constexpr Index max_low_degree = Rhs::LowDegreeAtCompileTime;
+    constexpr Index head_len = max_low_degree - min_low_degree;
+    constexpr Index head_available = std::min(Lhs::CoeffsCompileTime, head_len);
+
+    static_assert(head_available >= 0);
+    if (head_available == 0)
+      return;
+
+    res.coeffs().template head<head_available>() =
+        op.left_op(lhs.coeffs())
+            .template head<head_available>()
+            .template cast<ResultScalar>();
+  }
+};
+
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct TailOp<Result, Lhs, Rhs, Op, false> {
+  using ResultScalar = typename Result::Scalar;
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    (void)lhs;
+    static_assert(Rhs::DegreeAtCompileTime == Result::DegreeAtCompileTime);
+    constexpr Index max_degree = Rhs::DegreeAtCompileTime;
+    constexpr Index min_degree = Lhs::DegreeAtCompileTime;
+    constexpr Index tail_len = max_degree - min_degree;
+    constexpr Index tail_available = std::min(Rhs::CoeffsCompileTime, tail_len);
+    static_assert(tail_available != Dynamic);
+    if (tail_available == 0)
+      return;
+
+    res.coeffs().template tail<tail_available>() =
+        op.right_op(rhs.coeffs())
+            .template tail<tail_available>()
+            .template cast<ResultScalar>();
+  }
+};
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct TailOp<Result, Lhs, Rhs, Op, true> {
+  using ResultScalar = typename Result::Scalar;
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    (void)rhs;
+    static_assert(Lhs::DegreeAtCompileTime == Result::DegreeAtCompileTime);
+    constexpr Index max_degree = Lhs::DegreeAtCompileTime;
+    constexpr Index min_degree = Rhs::DegreeAtCompileTime;
+    constexpr Index tail_len = max_degree - min_degree;
+    constexpr Index tail_available = std::min(Lhs::CoeffsCompileTime, tail_len);
+    static_assert(tail_available != Dynamic);
+    if (tail_available == 0)
+      return;
+
+    res.coeffs().template tail<tail_available>() =
+        op.left_op(lhs.coeffs())
+            .template tail<tail_available>()
+            .template cast<ResultScalar>();
+  }
+};
+
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct MidOp<Result, Lhs, Rhs, Op, false> {
+  static constexpr Index min_degree =
+      std::min(Lhs::DegreeAtCompileTime, Rhs::DegreeAtCompileTime);
+  static constexpr Index max_low_degree =
+      std::max(Lhs::LowDegreeAtCompileTime, Rhs::LowDegreeAtCompileTime);
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    (void)op;
+    (void)rhs;
+    (void)lhs;
+
+    static_assert(min_degree != Dynamic);
+    static_assert(max_low_degree != Dynamic);
+    static_assert(max_low_degree > min_degree);
+
+    constexpr Index from = min_degree + 1 - Result::LowDegreeAtCompileTime;
+    constexpr Index len = max_low_degree - min_degree - 1;
+    static_assert(from >= 0);
+    static_assert(len >= 0);
+    if (len == 0)
+      return;
+
+    res.coeffs().template segment<len>(from).setZero();
+  }
+};
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct MidOp<Result, Lhs, Rhs, Op, true> {
+  static constexpr Index min_degree =
+      std::min(Lhs::DegreeAtCompileTime, Rhs::DegreeAtCompileTime);
+  static constexpr Index max_low_degree =
+      std::max(Lhs::LowDegreeAtCompileTime, Rhs::LowDegreeAtCompileTime);
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    static_assert(max_low_degree <= min_degree);
+    static_assert(min_degree != Dynamic);
+    static_assert(max_low_degree != Dynamic);
+
+    constexpr Index from = max_low_degree - Result::LowDegreeAtCompileTime;
+    constexpr Index len = min_degree - max_low_degree + 1;
+    static_assert(from >= 0);
+    static_assert(len >= 0);
+    if constexpr (len == 0)
+      return;
+
+    res.coeffs().template segment<len>(from) =
+        op(lhs.coeffs().template segment<len>(max_low_degree -
+                                              Lhs::LowDegreeAtCompileTime),
+           rhs.coeffs().template segment<len>(max_low_degree -
+                                              Rhs::LowDegreeAtCompileTime));
+  }
+};
+
+template <typename DerivedLhs, typename DerivedRhs, typename Op>
+struct SumLikeOpImpl<DensePolyBase<DerivedLhs>, DensePolyBase<DerivedRhs>, Op,
+                     true> : private Op {
+  using Lhs = DensePolyBase<DerivedLhs>;
+  using Rhs = DensePolyBase<DerivedRhs>;
+  using SumTraits = polynomial_sum_trait<Lhs, Rhs>;
+  using Result = typename SumTraits::ResultType;
+  using ResultScalar = typename Result::Scalar;
+  static constexpr Index min_degree =
+      std::min(Lhs::DegreeAtCompileTime, Rhs::DegreeAtCompileTime);
+  static constexpr Index max_low_degree =
+      std::max(Lhs::LowDegreeAtCompileTime, Rhs::LowDegreeAtCompileTime);
+  static constexpr bool nonzero_intersection = max_low_degree <= min_degree;
+
+  SumLikeOpImpl(const Lhs &lhs, const Rhs &rhs) : lhs(lhs), rhs(rhs) {}
+
+  Result operator()() const {
+    Result res;
+    static_assert(Result::DegreeAtCompileTime != Dynamic);
+    static_assert(Result::LowDegreeAtCompileTime != Dynamic);
+    HeadOp<Result, Lhs, Rhs, Op,
+           max_low_degree == Rhs::LowDegreeAtCompileTime>()(res, lhs, rhs,
+                                                            *this);
+    MidOp<Result, Lhs, Rhs, Op, nonzero_intersection>()(res, lhs, rhs, *this);
+    TailOp<Result, Lhs, Rhs, Op, min_degree == Rhs::DegreeAtCompileTime>()(
+        res, lhs, rhs, *this);
+    return res;
+  }
+
+  const Lhs &lhs;
+  const Rhs &rhs;
+};
+
+// dynamic-sized version
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct HeadOpDynamic {
+  using ResultScalar = typename Result::Scalar;
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    const auto rhs_low_degree = rhs.low_degree();
+    const auto lhs_low_degree = lhs.low_degree();
+    const auto res_low_degree = res.low_degree();
+
+    if (rhs_low_degree == res_low_degree) {
+      const auto min_low_degree = rhs_low_degree;
+      const auto max_low_degree = lhs_low_degree;
+      const auto head_len = max_low_degree - min_low_degree;
+      const auto head_available = std::min(rhs.total_coeffs(), head_len);
+
+      POLYNOMIALS_ASSERT(head_available >= 0, "Invalid segment length");
+      if (head_available == 0)
+        return;
+
+      res.coeffs().head(head_available) = op.right_op(rhs.coeffs())
+                                              .head(head_available)
+                                              .template cast<ResultScalar>();
+    } else {
+      POLYNOMIALS_ASSERT(lhs.low_degree() == res.low_degree(),
+                         "Low degree mismatch");
+      const auto min_low_degree = lhs_low_degree;
+      const auto max_low_degree = rhs_low_degree;
+      const auto head_len = max_low_degree - min_low_degree;
+      const auto head_available = std::min(lhs.total_coeffs(), head_len);
+
+      POLYNOMIALS_ASSERT(head_available >= 0, "Invalid segment length");
+      if (head_available == 0)
+        return;
+
+      res.coeffs().head(head_available) = op.left_op(lhs.coeffs())
+                                              .head(head_available)
+                                              .template cast<ResultScalar>();
+    }
+  }
+};
+
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct TailOpDynamic {
+  using ResultScalar = typename Result::Scalar;
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    const auto rhs_degree = rhs.degree();
+    const auto lhs_degree = lhs.degree();
+    const auto res_degree = res.degree();
+    if (rhs_degree == res_degree) {
+      const auto max_degree = rhs_degree;
+      const auto min_degree = lhs_degree;
+      const auto tail_len = max_degree - min_degree;
+      const auto tail_available = std::min(rhs.total_coeffs(), tail_len);
+      if (tail_available == 0)
+        return;
+
+      res.coeffs().tail(tail_available) = op.right_op(rhs.coeffs())
+                                              .tail(tail_available)
+                                              .template cast<ResultScalar>();
+    } else {
+      POLYNOMIALS_ASSERT(lhs_degree == res_degree,
+                         "Invalid degree: " << lhs_degree << ' ' << rhs_degree
+                                            << ' ' << res_degree);
+      const auto max_degree = lhs_degree;
+      const auto min_degree = rhs_degree;
+      const auto tail_len = max_degree - min_degree;
+      const auto tail_available = std::min(lhs.total_coeffs(), tail_len);
+      if (tail_available == 0)
+        return;
+
+      res.coeffs().tail(tail_available) = op.left_op(lhs.coeffs())
+                                              .tail(tail_available)
+                                              .template cast<ResultScalar>();
+    }
+  }
+};
+
+template <typename Result, typename Lhs, typename Rhs, typename Op>
+struct MidOpDynamic {
+
+  using ResultScalar = typename Result::Scalar;
+  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
+                  const Op &op) const {
+    const auto rhs_degree = rhs.degree();
+    const auto lhs_degree = lhs.degree();
+    const auto rhs_low_degree = rhs.low_degree();
+    const auto lhs_low_degree = lhs.low_degree();
+    const auto min_degree = std::min(lhs_degree, rhs_degree);
+    const auto max_low_degree = std::max(lhs_low_degree, rhs_low_degree);
+    const auto res_low_degree = res.low_degree();
+
+    const bool nonzero_intersection = max_low_degree <= min_degree;
+
+    if (nonzero_intersection) {
+      const auto from = max_low_degree - res_low_degree;
+      const auto len = min_degree - max_low_degree + 1;
+      POLYNOMIALS_ASSERT(from >= 0, "Invalid mid begin");
+      POLYNOMIALS_ASSERT(len >= 0, "Invalid mid length");
+      if (len == 0)
+        return;
+
+      res.coeffs().segment(from, len) =
+          op(lhs.coeffs().segment(max_low_degree - lhs_low_degree, len),
+             rhs.coeffs().segment(max_low_degree - rhs_low_degree, len));
+    } else {
+      POLYNOMIALS_ASSERT(max_low_degree > min_degree,
+                         "Invalid non-intersection case");
+
+      const auto from = min_degree + 1 - res_low_degree;
+      const auto len = max_low_degree - min_degree - 1;
+      POLYNOMIALS_ASSERT(from >= 0, "Invalid mid begin");
+      POLYNOMIALS_ASSERT(len >= 0, "Invalid mid length");
+      if (len == 0)
+        return;
+
+      res.coeffs().segment(from, len).setZero();
+    }
+  }
+};
+
+// dynamic-sized version
+template <typename DerivedLhs, typename DerivedRhs, typename Op>
+struct SumLikeOpImpl<DensePolyBase<DerivedLhs>, DensePolyBase<DerivedRhs>, Op,
+                     false> : private Op {
+  using Lhs = DensePolyBase<DerivedLhs>;
+  using Rhs = DensePolyBase<DerivedRhs>;
+  using SumTraits = polynomial_sum_trait<Lhs, Rhs>;
+  using Result = typename SumTraits::ResultType;
+  using ResultScalar = typename Result::Scalar;
+
+  SumLikeOpImpl(const Lhs &lhs, const Rhs &rhs) : lhs(lhs), rhs(rhs) {}
+
+  Result operator()() const {
+    Result res(std::max(lhs.degree(), rhs.degree()),
+               std::min(lhs.low_degree(), rhs.low_degree()));
+    HeadOpDynamic<Result, Lhs, Rhs, Op>()(res, lhs, rhs, *this);
+    MidOpDynamic<Result, Lhs, Rhs, Op>()(res, lhs, rhs, *this);
+    TailOpDynamic<Result, Lhs, Rhs, Op>()(res, lhs, rhs, *this);
+    return res;
+  }
+
+  const Lhs &lhs;
+  const Rhs &rhs;
+};
+
 template <typename DerivedLhs, typename DerivedRhs, typename Op>
 auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
                  const DensePolyBase<DerivedRhs> &rhs) ->
@@ -97,138 +445,9 @@ auto sum_like_op(const DensePolyBase<DerivedLhs> &lhs,
                                   DensePolyBase<DerivedRhs>>::ResultType {
   using SumTraits = polynomial_sum_trait<DensePolyBase<DerivedLhs>,
                                          DensePolyBase<DerivedRhs>>;
-  using Result = typename SumTraits::ResultType;
-  using ResultScalar = typename Result::Scalar;
-  const auto l_deg = lhs.degree();
-  const auto r_deg = rhs.degree();
-  const auto s_deg = std::max(l_deg, r_deg);
-  const auto l_low_deg = lhs.low_degree();
-  const auto r_low_deg = rhs.low_degree();
-  const auto s_low_deg = std::min(l_low_deg, r_low_deg);
-  Result sum(s_deg, s_low_deg);
-  auto &s_coeffs = sum.coeffs();
-  auto &l_coeffs = lhs.coeffs();
-  auto &r_coeffs = rhs.coeffs();
-
-  const Op op;
-
-  // setup higher degrees
-  if (s_deg != l_deg) {
-    if constexpr (SumTraits::DegreeAtCompileTime != Eigen::Dynamic) {
-      constexpr Index tail_len =
-          SumTraits::DegreeAtCompileTime - SumTraits::Lhs::DegreeAtCompileTime;
-      constexpr Index tail_present =
-          std::min(tail_len, SumTraits::Rhs::CoeffsCompileTime);
-      constexpr Index tail_zero = tail_len - tail_present;
-      if (tail_present) {
-        s_coeffs.template tail<tail_present>() =
-            op.right_op(r_coeffs.template tail<tail_present>())
-                .template cast<ResultScalar>();
-      }
-      if (tail_zero) {
-        constexpr Index tail_zero_base = SumTraits::Lhs::DegreeAtCompileTime -
-                                         SumTraits::LowDegreeAtCompileTime + 1;
-
-        s_coeffs.template segment<tail_zero>(tail_zero_base).setZero();
-      }
-    } else {
-      const Index tail_len = s_deg - r_deg;
-      s_coeffs.tail(tail_len) = op.right_op(r_coeffs.tail(tail_len));
-    }
-  }
-  if (s_deg != r_deg) {
-    if constexpr (SumTraits::DegreeAtCompileTime != Eigen::Dynamic) {
-      constexpr Index tail_len =
-          SumTraits::DegreeAtCompileTime - SumTraits::Rhs::DegreeAtCompileTime;
-      constexpr Index tail_present =
-          std::min(tail_len, SumTraits::Lhs::CoeffsCompileTime);
-      constexpr Index tail_zero = tail_len - tail_present;
-
-      if (tail_present) {
-        s_coeffs.template tail<tail_present>() =
-            op.left_op(l_coeffs.template tail<tail_present>())
-                .template cast<ResultScalar>();
-      }
-      if (tail_zero) {
-        constexpr Index tail_zero_base = SumTraits::Rhs::DegreeAtCompileTime -
-                                         SumTraits::LowDegreeAtCompileTime + 1;
-
-        s_coeffs.template segment<tail_zero>(tail_zero_base).setZero();
-      }
-    } else {
-      const Index tail_len = s_deg - l_deg;
-      s_coeffs.tail(tail_len) = op.left_op(l_coeffs.tail(tail_len));
-    }
-  }
-  // setup lower degrees
-  if (s_low_deg != l_low_deg) {
-    if constexpr (SumTraits::LowDegreeAtCompileTime != Eigen::Dynamic) {
-      constexpr Index head_len = SumTraits::Lhs::LowDegreeAtCompileTime -
-                                 SumTraits::LowDegreeAtCompileTime;
-      constexpr Index head_present_len =
-          std::min(head_len, SumTraits::Rhs::CoeffsCompileTime);
-      constexpr Index head_zero_len = head_len - head_present_len;
-      if (head_present_len) {
-        s_coeffs.template head<head_present_len>() =
-            op.right_op(r_coeffs.template head<head_present_len>())
-                .template cast<ResultScalar>();
-      }
-      if (head_zero_len) {
-        s_coeffs.template segment<head_zero_len>(head_present_len).setZero();
-      }
-    } else {
-      const Index head_len = l_low_deg - s_low_deg;
-      s_coeffs.head(head_len) = op.right_op(r_coeffs.head(head_len));
-    }
-  }
-  if (s_low_deg != r_low_deg) {
-    if constexpr (SumTraits::LowDegreeAtCompileTime != Eigen::Dynamic) {
-      constexpr Index head_len = SumTraits::Rhs::LowDegreeAtCompileTime -
-                                 SumTraits::LowDegreeAtCompileTime;
-      constexpr Index head_present_len =
-          std::min(head_len, SumTraits::Lhs::CoeffsCompileTime);
-      constexpr Index head_zero_len = head_len - head_present_len;
-      if (head_present_len) {
-        s_coeffs.template head<head_present_len>() =
-            op.left_op(l_coeffs.template head<head_present_len>())
-                .template cast<ResultScalar>();
-      }
-      if (head_zero_len) {
-        s_coeffs.template segment<head_zero_len>(head_present_len).setZero();
-      }
-    } else {
-      const Index head_len = r_low_deg - s_low_deg;
-      s_coeffs.head(head_len) = op.left_op(l_coeffs.head(head_len));
-    }
-  }
-  // setup middle
-  if constexpr (SumTraits::LowDegreeAtCompileTime != Eigen::Dynamic &&
-                SumTraits::DegreeAtCompileTime != Eigen::Dynamic) {
-    constexpr Index mid_low = std::max(SumTraits::Lhs::LowDegreeAtCompileTime,
-                                       SumTraits::Rhs::LowDegreeAtCompileTime);
-    constexpr Index mid_high = std::min(SumTraits::Lhs::DegreeAtCompileTime,
-                                        SumTraits::Rhs::DegreeAtCompileTime);
-    constexpr Index mid_len = mid_high - mid_low + 1;
-
-    if constexpr (mid_len > 0) {
-      s_coeffs.template segment<mid_len>(mid_low -
-                                         SumTraits::LowDegreeAtCompileTime) =
-          op(l_coeffs.template segment<mid_len>(
-                 mid_low - SumTraits::Lhs::LowDegreeAtCompileTime),
-             r_coeffs.template segment<mid_len>(
-                 mid_low - SumTraits::Rhs::LowDegreeAtCompileTime));
-    }
-  } else {
-    const Index mid_low = std::max(l_low_deg, r_low_deg);
-    const Index mid_high = std::min(l_deg, r_deg);
-    const Index mid_len = mid_high - mid_low + 1;
-    if (mid_len > 0) {
-      s_coeffs.segment(mid_low, mid_len) =
-          op(l_coeffs.segment(mid_low - l_low_deg, mid_len),
-             r_coeffs.segment(mid_low - r_low_deg, mid_len));
-    }
-  }
-  return sum;
+  using Impl =
+      SumLikeOpImpl<typename SumTraits::Lhs, typename SumTraits::Rhs, Op>;
+  return Impl(lhs, rhs)();
 }
 
 template <typename DerivedLhs, typename DerivedRhs>
@@ -241,15 +460,15 @@ auto operator*(const DensePolyBase<DerivedLhs> &lhs,
   using Result = typename MulTraits::ResultType;
   Result res(lhs.degree() + rhs.degree(), lhs.low_degree() + rhs.low_degree());
 
-  if constexpr (MulTraits::DegreeAtCompileTime != Eigen::Dynamic &&
-                MulTraits::LowDegreeAtCompileTime != Eigen::Dynamic) {
+  if constexpr (MulTraits::DegreeAtCompileTime != Dynamic &&
+                MulTraits::LowDegreeAtCompileTime != Dynamic) {
     using Lhs = typename MulTraits::Lhs;
     using Rhs = typename MulTraits::Rhs;
     // using Scalar = typename MulTraits::Scalar;
     constexpr Index tail = Rhs::CoeffsCompileTime;
     constexpr Index head = Lhs::CoeffsCompileTime - 1;
-    static_assert(tail != Eigen::Dynamic && tail > 0);
-    static_assert(head != Eigen::Dynamic && head >= 0);
+    static_assert(tail != Dynamic && tail > 0);
+    static_assert(head != Dynamic && head >= 0);
 
     auto &c = res.coeffs();
     c.template tail<tail>() = rhs.coeffs() * lhs[Lhs::DegreeAtCompileTime];
@@ -266,14 +485,14 @@ auto operator*(const DensePolyBase<DerivedLhs> &lhs,
   } else {
     const Index tail = rhs.total_coeffs();
     const Index head = lhs.total_coeffs() - 1;
-    POLYNOMIALS_ASSERT(tail != Eigen::Dynamic && tail > 0,
+    POLYNOMIALS_ASSERT(tail != Dynamic && tail > 0,
                        "Invalid multiplication size");
-    POLYNOMIALS_ASSERT(head != Eigen::Dynamic && head >= 0,
+    POLYNOMIALS_ASSERT(head != Dynamic && head >= 0,
                        "Invalid multiplication size");
 
     auto &c = res.coeffs();
     c.tail(tail) = rhs.coeffs() * lhs[lhs.degree()];
-    c.head(head) = rhs.coeffs().head() * lhs[lhs.low_degree()];
+    c.head(head) = lhs.coeffs().head(head) * rhs[rhs.low_degree()];
 
     const Index mul_rhs_len = rhs.total_coeffs() - 1;
     for (Index lhs_degree = lhs.low_degree(); lhs_degree < lhs.degree();

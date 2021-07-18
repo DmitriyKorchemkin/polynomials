@@ -23,17 +23,9 @@ SOFTWARE.
 #define POLYNOMIALS_DENSE_POLYNOMIAL_HPP
 
 #include "polynomials/assert.hpp"
+#include "polynomials/types.hpp"
 
 #include <Eigen/Dense>
-
-namespace polynomials {
-
-using Index = Eigen::Index;
-template <typename T, Index DegreeAtCompileTime,
-          Index LowDegreeAtCompileTime = 0,
-          Index MaxDegreeAtCompileTime = DegreeAtCompileTime, int Options = 0>
-struct DensePoly;
-} // namespace polynomials
 
 namespace Eigen {
 namespace internal {
@@ -114,16 +106,15 @@ template <typename Derived> struct DensePolyBase {
   auto &coeffs() { return derived().coeffs(); }
 
   constexpr auto low_degree() const {
-    return LowDegreeAtCompileTime == Eigen::Dynamic ? derived().low_degree()
-                                                    : LowDegreeAtCompileTime;
+    return LowDegreeAtCompileTime == Dynamic ? derived().low_degree()
+                                             : LowDegreeAtCompileTime;
   }
   constexpr Index degree() const {
-    return DegreeAtCompileTime == Eigen::Dynamic ? derived().degree()
-                                                 : DegreeAtCompileTime;
+    return DegreeAtCompileTime == Dynamic ? derived().degree()
+                                          : DegreeAtCompileTime;
   }
   constexpr Index total_coeffs() const {
-    return CoeffsCompileTime == Eigen::Dynamic ? coeffs().size()
-                                               : CoeffsCompileTime;
+    return CoeffsCompileTime == Dynamic ? coeffs().size() : CoeffsCompileTime;
   }
 
 protected:
@@ -152,7 +143,7 @@ template <Index sz> struct LowDegreeValue {
   }
 };
 
-template <> struct LowDegreeValue<Eigen::Dynamic> {
+template <> struct LowDegreeValue<Dynamic> {
   LowDegreeValue(const Index &sz) : sz(sz) {}
 
   Index low_degree_value() const { return sz; }
@@ -162,33 +153,31 @@ protected:
   Index sz;
 };
 
-
 constexpr Index max_num_coeffs(const Index LowDegreeAtCompileTime,
                                const Index MaxDegreeAtCompileTime) {
-  if (MaxDegreeAtCompileTime == Eigen::Dynamic)
-    return Eigen::Dynamic;
-  if (LowDegreeAtCompileTime != Eigen::Dynamic)
+  if (MaxDegreeAtCompileTime == Dynamic)
+    return Dynamic;
+  if (LowDegreeAtCompileTime != Dynamic)
     return MaxDegreeAtCompileTime - LowDegreeAtCompileTime + 1;
 
-  return MaxDegreeAtCompileTime;
+  return MaxDegreeAtCompileTime + 1;
 }
 constexpr Index num_coeffs_compile_time(const Index DegreeAtCompileTime,
                                         const Index LowDegreeAtCompileTime) {
 
-  if (DegreeAtCompileTime != Eigen::Dynamic &&
-      LowDegreeAtCompileTime != Eigen::Dynamic)
+  if (DegreeAtCompileTime != Dynamic && LowDegreeAtCompileTime != Dynamic)
     return DegreeAtCompileTime - LowDegreeAtCompileTime + 1;
-  return Eigen::Dynamic;
+  return Dynamic;
 }
 
 constexpr Index max_or_dynamic(const Index &a, const Index &b) {
-  if (a == Eigen::Dynamic || b == Eigen::Dynamic)
-    return Eigen::Dynamic;
+  if (a == Dynamic || b == Dynamic)
+    return Dynamic;
   return std::max(a, b);
 }
 constexpr Index min_or_dynamic(const Index &a, const Index &b) {
-  if (a == Eigen::Dynamic || b == Eigen::Dynamic)
-    return Eigen::Dynamic;
+  if (a == Dynamic || b == Dynamic)
+    return Dynamic;
   return std::min(a, b);
 }
 
@@ -223,8 +212,8 @@ struct DensePoly
   }
 
   constexpr Index degree() const {
-    return DegreeAtCompileTime == Eigen::Dynamic ? low_degree() + coeffs_.size()
-                                                 : DegreeAtCompileTime;
+    return DegreeAtCompileTime == Dynamic ? low_degree() + coeffs_.size() - 1
+                                          : DegreeAtCompileTime;
   }
 
   const Scalar *data() const { return coeffs_.data(); }
@@ -275,8 +264,9 @@ public:
   }
 
   constexpr Index degree() const {
-    return DegreeAtCompileTime == Eigen::Dynamic ? low_degree() + coeffs_.size()
-                                                 : DegreeAtCompileTime;
+    return DegreeAtCompileTime == polynomials::Dynamic
+               ? low_degree() + coeffs_.size() - 1
+               : DegreeAtCompileTime;
   }
 
   const Scalar *data() const { return coeffs_.data(); }
@@ -323,8 +313,9 @@ public:
   }
 
   constexpr Index degree() const {
-    return DegreeAtCompileTime == Eigen::Dynamic ? low_degree() + coeffs_.size()
-                                                 : DegreeAtCompileTime;
+    return DegreeAtCompileTime == polynomials::Dynamic
+               ? low_degree() + coeffs_.size() - 1
+               : DegreeAtCompileTime;
   }
 
   const Scalar *data() const { return coeffs_.data(); }

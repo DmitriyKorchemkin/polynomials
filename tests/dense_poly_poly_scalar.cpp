@@ -20,17 +20,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ******************************************************************************/
 
-#include "testing.hpp"
+#include "dense_polynomial_tests.hpp"
 
-TEST_CASE("Dense scalar operator-") {
-  DegreeIterator<MinusScalarTest, double, double, double, 0, 3, 5>().test();
-  DegreeIterator<MinusScalarTest, double, double, ceres::Jet<double, 4>, 0, 3,
-                 5>()
-      .test();
-  DegreeIterator<MinusScalarTest, double, ceres::Jet<double, 4>, double, 0, 3,
-                 5>()
-      .test();
-  DegreeIterator<MinusScalarTest, double, ceres::Jet<double, 4>,
-                 ceres::Jet<double, 4>, 0, 3, 5>()
-      .test();
-}
+#ifndef TEST_TYPE
+#error "Need to define Test type"
+#endif
+#ifndef LHS_TYPE
+#error "Need to define LHS type"
+#endif
+#ifndef RHS_TYPE
+#error "Need to define RHS type"
+#endif
+
+using jet = JetType<double>;
+
+#define TEST(T, L, R)                                                          \
+  TEST_CASE("(Polynomial op polynomial) (scalar) " #T "_" #L "_" #R) {         \
+    CHECK(PolyPolyScalarTest<T, L, R, double>::Check());                       \
+  }
+
+TEST(TEST_TYPE, LHS_TYPE, RHS_TYPE)
