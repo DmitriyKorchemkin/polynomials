@@ -34,11 +34,8 @@ struct polynomial_scalar_op_trait<DensePolyBase<Derived>, Rhs> {
   using Scalar = typename Eigen::ScalarBinaryOpTraits<typename Poly::Scalar,
                                                       OtherScalar>::ReturnType;
   static constexpr Index DegreeAtCompileTime = Poly::DegreeAtCompileTime;
-  static constexpr Index LowDegreeAtCompileTime = Poly::LowDegreeAtCompileTime;
 
-  using ResultType =
-      DensePoly<Scalar, DegreeAtCompileTime, LowDegreeAtCompileTime>;
-  using ResultTypeWithIntercept = DensePoly<Scalar, DegreeAtCompileTime, 0>;
+  using ResultType = DensePoly<Scalar, DegreeAtCompileTime>;
 };
 
 template <typename Derived, typename OtherScalar,
@@ -47,11 +44,10 @@ template <typename Derived, typename OtherScalar,
               bool> = true>
 auto operator+(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
-                                        OtherScalar>::ResultTypeWithIntercept {
+                                        OtherScalar>::ResultType {
   using OpTraits =
       polynomial_scalar_op_trait<DensePolyBase<Derived>, OtherScalar>;
-  using ResultBase = typename OpTraits::ResultType;
-  using Result = typename OpTraits::ResultTypeWithIntercept;
+  using Result = typename OpTraits::ResultType;
 
   const auto deg = lhs.degree();
   Result res(deg);
@@ -60,7 +56,7 @@ auto operator+(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     constexpr Index deg = OpTraits::Poly::DegreeAtCompileTime;
     constexpr Index head_size = deg + 1 - tail_size;
     res.coeffs().template tail<tail_size>() =
-        lhs.coeffs().template cast<typename ResultBase::Scalar>();
+        lhs.coeffs().template cast<typename Result::Scalar>();
     if (head_size) {
       res.coeffs().template head<head_size>().setZero();
     }
@@ -68,7 +64,7 @@ auto operator+(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     const Index tail_size = lhs.total_coeffs();
     const Index head_size = deg + 1 - tail_size;
     res.coeffs().tail(tail_size) =
-        lhs.coeffs().template cast<typename ResultBase::Scalar>();
+        lhs.coeffs().template cast<typename Result::Scalar>();
     if (head_size) {
       res.coeffs().head(head_size).setZero();
     }
@@ -83,7 +79,7 @@ template <typename Derived, typename OtherScalar,
               bool> = true>
 auto operator+(const OtherScalar &rhs, const DensePolyBase<Derived> &lhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
-                                        OtherScalar>::ResultTypeWithIntercept {
+                                        OtherScalar>::ResultType {
   return lhs + rhs;
 }
 
@@ -93,11 +89,10 @@ template <typename Derived, typename OtherScalar,
               bool> = true>
 auto operator-(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
-                                        OtherScalar>::ResultTypeWithIntercept {
+                                        OtherScalar>::ResultType {
   using OpTraits =
       polynomial_scalar_op_trait<DensePolyBase<Derived>, OtherScalar>;
-  using ResultBase = typename OpTraits::ResultType;
-  using Result = typename OpTraits::ResultTypeWithIntercept;
+  using Result = typename OpTraits::ResultType;
 
   const auto deg = lhs.degree();
   Result res(deg);
@@ -106,7 +101,7 @@ auto operator-(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     constexpr Index deg = OpTraits::Poly::DegreeAtCompileTime;
     constexpr Index head_size = deg + 1 - tail_size;
     res.coeffs().template tail<tail_size>() =
-        lhs.coeffs().template cast<typename ResultBase::Scalar>();
+        lhs.coeffs().template cast<typename Result::Scalar>();
     if (head_size) {
       res.coeffs().template head<head_size>().setZero();
     }
@@ -114,7 +109,7 @@ auto operator-(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
     const Index tail_size = lhs.total_coeffs();
     const Index head_size = deg + 1 - tail_size;
     res.coeffs().tail(tail_size) =
-        lhs.coeffs().template cast<typename ResultBase::Scalar>();
+        lhs.coeffs().template cast<typename Result::Scalar>();
     if (head_size) {
       res.coeffs().head(head_size).setZero();
     }
@@ -129,11 +124,10 @@ template <typename Derived, typename OtherScalar,
               bool> = true>
 auto operator-(const OtherScalar &rhs, const DensePolyBase<Derived> &lhs) ->
     typename polynomial_scalar_op_trait<DensePolyBase<Derived>,
-                                        OtherScalar>::ResultTypeWithIntercept {
+                                        OtherScalar>::ResultType {
   using OpTraits =
       polynomial_scalar_op_trait<DensePolyBase<Derived>, OtherScalar>;
-  using ResultBase = typename OpTraits::ResultType;
-  using Result = typename OpTraits::ResultTypeWithIntercept;
+  using Result = typename OpTraits::ResultType;
 
   const auto deg = lhs.degree();
   Result res(deg);
@@ -142,7 +136,7 @@ auto operator-(const OtherScalar &rhs, const DensePolyBase<Derived> &lhs) ->
     constexpr Index deg = OpTraits::Poly::DegreeAtCompileTime;
     constexpr Index head_size = deg + 1 - tail_size;
     res.coeffs().template tail<tail_size>() =
-        (-lhs.coeffs()).template cast<typename ResultBase::Scalar>();
+        (-lhs.coeffs()).template cast<typename Result::Scalar>();
     if (head_size) {
       res.coeffs().template head<head_size>().setZero();
     }
@@ -150,7 +144,7 @@ auto operator-(const OtherScalar &rhs, const DensePolyBase<Derived> &lhs) ->
     const Index tail_size = lhs.total_coeffs();
     const Index head_size = deg + 1 - tail_size;
     res.coeffs().tail(tail_size) =
-        (-lhs.coeffs()).template cast<typename ResultBase::Scalar>();
+        (-lhs.coeffs()).template cast<typename Result::Scalar>();
     if (head_size) {
       res.coeffs().head(head_size).setZero();
     }
@@ -171,8 +165,7 @@ auto operator*(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
   using Result = typename OpTraits::ResultType;
 
   const auto deg = lhs.degree();
-  const auto low_deg = lhs.low_degree();
-  Result res(deg, low_deg);
+  Result res(deg);
   res.coeffs() = lhs.coeffs() * rhs;
   return res;
 }
@@ -196,8 +189,7 @@ auto operator/(const DensePolyBase<Derived> &lhs, const OtherScalar &rhs) ->
   using Result = typename OpTraits::ResultType;
 
   const auto deg = lhs.degree();
-  const auto low_deg = lhs.low_degree();
-  Result res(deg, low_deg);
+  Result res(deg);
   res.coeffs() = lhs.coeffs() / rhs;
   return res;
 }

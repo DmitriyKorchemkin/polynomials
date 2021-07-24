@@ -46,14 +46,8 @@ struct polynomial_mul_trait<DensePolyBase<DerivedLhs>,
        Rhs::DegreeAtCompileTime == Dynamic)
           ? Dynamic
           : Lhs::DegreeAtCompileTime + Rhs::DegreeAtCompileTime;
-  static constexpr Index LowDegreeAtCompileTime =
-      (Lhs::LowDegreeAtCompileTime == Dynamic ||
-       Rhs::LowDegreeAtCompileTime == Dynamic)
-          ? Dynamic
-          : Lhs::LowDegreeAtCompileTime + Rhs::LowDegreeAtCompileTime;
 
-  using ResultType =
-      DensePoly<Scalar, DegreeAtCompileTime, LowDegreeAtCompileTime>;
+  using ResultType = DensePoly<Scalar, DegreeAtCompileTime>;
 };
 
 template <typename Lhs, typename Rhs> struct polynomial_sum_trait;
@@ -68,11 +62,8 @@ struct polynomial_sum_trait<DensePolyBase<DerivedLhs>,
                                            typename Rhs::Scalar>::ReturnType;
   static constexpr Index DegreeAtCompileTime =
       max_or_dynamic(Lhs::DegreeAtCompileTime, Rhs::DegreeAtCompileTime);
-  static constexpr Index LowDegreeAtCompileTime =
-      min_or_dynamic(Lhs::LowDegreeAtCompileTime, Rhs::LowDegreeAtCompileTime);
 
-  using ResultType =
-      DensePoly<Scalar, DegreeAtCompileTime, LowDegreeAtCompileTime>;
+  using ResultType = DensePoly<Scalar, DegreeAtCompileTime>;
 
   static constexpr Index CoeffsCompileTime = ResultType::CoeffsCompileTime;
 };
@@ -105,62 +96,11 @@ struct SumLikeOpImpl;
 // static-sized version
 template <typename Result, typename Lhs, typename Rhs, typename Op,
           bool from_lhs>
-struct HeadOp;
-
-template <typename Result, typename Lhs, typename Rhs, typename Op,
-          bool from_lhs>
 struct TailOp;
 
 template <typename Result, typename Lhs, typename Rhs, typename Op,
           bool has_intersection>
 struct MidOp;
-
-template <typename Result, typename Lhs, typename Rhs, typename Op>
-struct HeadOp<Result, Lhs, Rhs, Op, false> {
-  using ResultScalar = typename Result::Scalar;
-  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
-                  const Op &op) const {
-    (void)lhs;
-    static_assert(Rhs::LowDegreeAtCompileTime ==
-                  Result::LowDegreeAtCompileTime);
-    constexpr Index min_low_degree = Rhs::LowDegreeAtCompileTime;
-    constexpr Index max_low_degree = Lhs::LowDegreeAtCompileTime;
-    constexpr Index head_len = max_low_degree - min_low_degree;
-    constexpr Index head_available = std::min(Rhs::CoeffsCompileTime, head_len);
-
-    static_assert(head_available >= 0);
-    if (head_available == 0)
-      return;
-
-    res.coeffs().template head<head_available>() =
-        op.right_op(rhs.coeffs())
-            .template head<head_available>()
-            .template cast<ResultScalar>();
-  }
-};
-template <typename Result, typename Lhs, typename Rhs, typename Op>
-struct HeadOp<Result, Lhs, Rhs, Op, true> {
-  using ResultScalar = typename Result::Scalar;
-  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
-                  const Op &op) const {
-    (void)rhs;
-    static_assert(Lhs::LowDegreeAtCompileTime ==
-                  Result::LowDegreeAtCompileTime);
-    constexpr Index min_low_degree = Lhs::LowDegreeAtCompileTime;
-    constexpr Index max_low_degree = Rhs::LowDegreeAtCompileTime;
-    constexpr Index head_len = max_low_degree - min_low_degree;
-    constexpr Index head_available = std::min(Lhs::CoeffsCompileTime, head_len);
-
-    static_assert(head_available >= 0);
-    if (head_available == 0)
-      return;
-
-    res.coeffs().template head<head_available>() =
-        op.left_op(lhs.coeffs())
-            .template head<head_available>()
-            .template cast<ResultScalar>();
-  }
-};
 
 template <typename Result, typename Lhs, typename Rhs, typename Op>
 struct TailOp<Result, Lhs, Rhs, Op, false> {
@@ -206,55 +146,20 @@ struct TailOp<Result, Lhs, Rhs, Op, true> {
 };
 
 template <typename Result, typename Lhs, typename Rhs, typename Op>
-struct MidOp<Result, Lhs, Rhs, Op, false> {
-  static constexpr Index min_degree =
-      std::min(Lhs::DegreeAtCompileTime, Rhs::DegreeAtCompileTime);
-  static constexpr Index max_low_degree =
-      std::max(Lhs::LowDegreeAtCompileTime, Rhs::LowDegreeAtCompileTime);
-  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
-                  const Op &op) const {
-    (void)op;
-    (void)rhs;
-    (void)lhs;
-
-    static_assert(min_degree != Dynamic);
-    static_assert(max_low_degree != Dynamic);
-    static_assert(max_low_degree > min_degree);
-
-    constexpr Index from = min_degree + 1 - Result::LowDegreeAtCompileTime;
-    constexpr Index len = max_low_degree - min_degree - 1;
-    static_assert(from >= 0);
-    static_assert(len >= 0);
-    if (len == 0)
-      return;
-
-    res.coeffs().template segment<len>(from).setZero();
-  }
-};
-template <typename Result, typename Lhs, typename Rhs, typename Op>
 struct MidOp<Result, Lhs, Rhs, Op, true> {
   static constexpr Index min_degree =
       std::min(Lhs::DegreeAtCompileTime, Rhs::DegreeAtCompileTime);
-  static constexpr Index max_low_degree =
-      std::max(Lhs::LowDegreeAtCompileTime, Rhs::LowDegreeAtCompileTime);
   void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
                   const Op &op) const {
-    static_assert(max_low_degree <= min_degree);
     static_assert(min_degree != Dynamic);
-    static_assert(max_low_degree != Dynamic);
 
-    constexpr Index from = max_low_degree - Result::LowDegreeAtCompileTime;
-    constexpr Index len = min_degree - max_low_degree + 1;
-    static_assert(from >= 0);
+    constexpr Index len = min_degree + 1;
     static_assert(len >= 0);
     if constexpr (len == 0)
       return;
 
-    res.coeffs().template segment<len>(from) =
-        op(lhs.coeffs().template segment<len>(max_low_degree -
-                                              Lhs::LowDegreeAtCompileTime),
-           rhs.coeffs().template segment<len>(max_low_degree -
-                                              Rhs::LowDegreeAtCompileTime));
+    res.coeffs().template head<len>() = op(lhs.coeffs().template head<len>(),
+                                           rhs.coeffs().template head<len>());
   }
 };
 
@@ -268,20 +173,13 @@ struct SumLikeOpImpl<DensePolyBase<DerivedLhs>, DensePolyBase<DerivedRhs>, Op,
   using ResultScalar = typename Result::Scalar;
   static constexpr Index min_degree =
       std::min(Lhs::DegreeAtCompileTime, Rhs::DegreeAtCompileTime);
-  static constexpr Index max_low_degree =
-      std::max(Lhs::LowDegreeAtCompileTime, Rhs::LowDegreeAtCompileTime);
-  static constexpr bool nonzero_intersection = max_low_degree <= min_degree;
 
   SumLikeOpImpl(const Lhs &lhs, const Rhs &rhs) : lhs(lhs), rhs(rhs) {}
 
   Result operator()() const {
     Result res;
     static_assert(Result::DegreeAtCompileTime != Dynamic);
-    static_assert(Result::LowDegreeAtCompileTime != Dynamic);
-    HeadOp<Result, Lhs, Rhs, Op,
-           max_low_degree == Rhs::LowDegreeAtCompileTime>()(res, lhs, rhs,
-                                                            *this);
-    MidOp<Result, Lhs, Rhs, Op, nonzero_intersection>()(res, lhs, rhs, *this);
+    MidOp<Result, Lhs, Rhs, Op, true>()(res, lhs, rhs, *this);
     TailOp<Result, Lhs, Rhs, Op, min_degree == Rhs::DegreeAtCompileTime>()(
         res, lhs, rhs, *this);
     return res;
@@ -292,47 +190,6 @@ struct SumLikeOpImpl<DensePolyBase<DerivedLhs>, DensePolyBase<DerivedRhs>, Op,
 };
 
 // dynamic-sized version
-template <typename Result, typename Lhs, typename Rhs, typename Op>
-struct HeadOpDynamic {
-  using ResultScalar = typename Result::Scalar;
-  void operator()(Result &res, const Lhs &lhs, const Rhs &rhs,
-                  const Op &op) const {
-    const auto rhs_low_degree = rhs.low_degree();
-    const auto lhs_low_degree = lhs.low_degree();
-    const auto res_low_degree = res.low_degree();
-
-    if (rhs_low_degree == res_low_degree) {
-      const auto min_low_degree = rhs_low_degree;
-      const auto max_low_degree = lhs_low_degree;
-      const auto head_len = max_low_degree - min_low_degree;
-      const auto head_available = std::min(rhs.total_coeffs(), head_len);
-
-      POLYNOMIALS_ASSERT(head_available >= 0, "Invalid segment length");
-      if (head_available == 0)
-        return;
-
-      res.coeffs().head(head_available) = op.right_op(rhs.coeffs())
-                                              .head(head_available)
-                                              .template cast<ResultScalar>();
-    } else {
-      POLYNOMIALS_ASSERT(lhs.low_degree() == res.low_degree(),
-                         "Low degree mismatch");
-      const auto min_low_degree = lhs_low_degree;
-      const auto max_low_degree = rhs_low_degree;
-      const auto head_len = max_low_degree - min_low_degree;
-      const auto head_available = std::min(lhs.total_coeffs(), head_len);
-
-      POLYNOMIALS_ASSERT(head_available >= 0, "Invalid segment length");
-      if (head_available == 0)
-        return;
-
-      res.coeffs().head(head_available) = op.left_op(lhs.coeffs())
-                                              .head(head_available)
-                                              .template cast<ResultScalar>();
-    }
-  }
-};
-
 template <typename Result, typename Lhs, typename Rhs, typename Op>
 struct TailOpDynamic {
   using ResultScalar = typename Result::Scalar;
@@ -378,38 +235,14 @@ struct MidOpDynamic {
                   const Op &op) const {
     const auto rhs_degree = rhs.degree();
     const auto lhs_degree = lhs.degree();
-    const auto rhs_low_degree = rhs.low_degree();
-    const auto lhs_low_degree = lhs.low_degree();
     const auto min_degree = std::min(lhs_degree, rhs_degree);
-    const auto max_low_degree = std::max(lhs_low_degree, rhs_low_degree);
-    const auto res_low_degree = res.low_degree();
 
-    const bool nonzero_intersection = max_low_degree <= min_degree;
+    const auto len = min_degree + 1;
+    POLYNOMIALS_ASSERT(len >= 0, "Invalid mid length");
+    if (len == 0)
+      return;
 
-    if (nonzero_intersection) {
-      const auto from = max_low_degree - res_low_degree;
-      const auto len = min_degree - max_low_degree + 1;
-      POLYNOMIALS_ASSERT(from >= 0, "Invalid mid begin");
-      POLYNOMIALS_ASSERT(len >= 0, "Invalid mid length");
-      if (len == 0)
-        return;
-
-      res.coeffs().segment(from, len) =
-          op(lhs.coeffs().segment(max_low_degree - lhs_low_degree, len),
-             rhs.coeffs().segment(max_low_degree - rhs_low_degree, len));
-    } else {
-      POLYNOMIALS_ASSERT(max_low_degree > min_degree,
-                         "Invalid non-intersection case");
-
-      const auto from = min_degree + 1 - res_low_degree;
-      const auto len = max_low_degree - min_degree - 1;
-      POLYNOMIALS_ASSERT(from >= 0, "Invalid mid begin");
-      POLYNOMIALS_ASSERT(len >= 0, "Invalid mid length");
-      if (len == 0)
-        return;
-
-      res.coeffs().segment(from, len).setZero();
-    }
+    res.coeffs().head(len) = op(lhs.coeffs().head(len), rhs.coeffs().head(len));
   }
 };
 
@@ -426,9 +259,7 @@ struct SumLikeOpImpl<DensePolyBase<DerivedLhs>, DensePolyBase<DerivedRhs>, Op,
   SumLikeOpImpl(const Lhs &lhs, const Rhs &rhs) : lhs(lhs), rhs(rhs) {}
 
   Result operator()() const {
-    Result res(std::max(lhs.degree(), rhs.degree()),
-               std::min(lhs.low_degree(), rhs.low_degree()));
-    HeadOpDynamic<Result, Lhs, Rhs, Op>()(res, lhs, rhs, *this);
+    Result res(std::max(lhs.degree(), rhs.degree()));
     MidOpDynamic<Result, Lhs, Rhs, Op>()(res, lhs, rhs, *this);
     TailOpDynamic<Result, Lhs, Rhs, Op>()(res, lhs, rhs, *this);
     return res;
@@ -458,10 +289,9 @@ auto operator*(const DensePolyBase<DerivedLhs> &lhs,
   using MulTraits = polynomial_mul_trait<DensePolyBase<DerivedLhs>,
                                          DensePolyBase<DerivedRhs>>;
   using Result = typename MulTraits::ResultType;
-  Result res(lhs.degree() + rhs.degree(), lhs.low_degree() + rhs.low_degree());
+  Result res(lhs.degree() + rhs.degree());
 
-  if constexpr (MulTraits::DegreeAtCompileTime != Dynamic &&
-                MulTraits::LowDegreeAtCompileTime != Dynamic) {
+  if constexpr (MulTraits::DegreeAtCompileTime != Dynamic) {
     using Lhs = typename MulTraits::Lhs;
     using Rhs = typename MulTraits::Rhs;
     // using Scalar = typename MulTraits::Scalar;
@@ -472,14 +302,12 @@ auto operator*(const DensePolyBase<DerivedLhs> &lhs,
 
     auto &c = res.coeffs();
     c.template tail<tail>() = rhs.coeffs() * lhs[Lhs::DegreeAtCompileTime];
-    c.template head<head>() =
-        lhs.coeffs().template head<head>() * rhs[Rhs::LowDegreeAtCompileTime];
+    c.template head<head>() = lhs.coeffs().template head<head>() * rhs[0];
 
     constexpr Index mul_rhs_len = Rhs::CoeffsCompileTime - 1;
-    for (Index lhs_degree = Lhs::LowDegreeAtCompileTime;
-         lhs_degree < Lhs::DegreeAtCompileTime; ++lhs_degree) {
-      c.template segment<mul_rhs_len>(lhs_degree - Lhs::LowDegreeAtCompileTime +
-                                      1) +=
+    for (Index lhs_degree = 0; lhs_degree < Lhs::DegreeAtCompileTime;
+         ++lhs_degree) {
+      c.template segment<mul_rhs_len>(lhs_degree + 1) +=
           rhs.coeffs().template tail<mul_rhs_len>() * lhs[lhs_degree];
     }
   } else {
@@ -492,12 +320,11 @@ auto operator*(const DensePolyBase<DerivedLhs> &lhs,
 
     auto &c = res.coeffs();
     c.tail(tail) = rhs.coeffs() * lhs[lhs.degree()];
-    c.head(head) = lhs.coeffs().head(head) * rhs[rhs.low_degree()];
+    c.head(head) = lhs.coeffs().head(head) * rhs[0];
 
     const Index mul_rhs_len = rhs.total_coeffs() - 1;
-    for (Index lhs_degree = lhs.low_degree(); lhs_degree < lhs.degree();
-         ++lhs_degree) {
-      c.segment(lhs_degree - lhs.low_degree() + 1, mul_rhs_len) +=
+    for (Index lhs_degree = 0; lhs_degree < lhs.degree(); ++lhs_degree) {
+      c.segment(lhs_degree + 1, mul_rhs_len) +=
           rhs.coeffs().tail(mul_rhs_len) * lhs[lhs_degree];
     }
   }
@@ -530,7 +357,7 @@ std::ostream &operator<<(std::ostream &os, const DensePolyBase<Derived> &poly) {
 
   bool not_first = false;
   bool showpos = os.flags() & std::ios_base::showpos;
-  for (Index i = poly.low_degree(); i <= poly.degree(); ++i) {
+  for (Index i = 0; i <= poly.degree(); ++i) {
     const auto &C = poly[i];
     if (C == zero)
       continue;

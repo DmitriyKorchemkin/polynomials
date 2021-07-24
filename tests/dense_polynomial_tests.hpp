@@ -24,8 +24,7 @@ SOFTWARE.
 
 #include "testing.hpp"
 
-template <typename Poly1, int deg1, int low_deg1, typename Poly2, int deg2,
-          int low_deg2, typename Scalar>
+template <typename Poly1, int deg1, typename Poly2, int deg2, typename Scalar>
 struct TestBase {
   using ScalarP1 = typename Poly1::Scalar;
   using ScalarP2 = typename Poly2::Scalar;
@@ -37,7 +36,7 @@ struct TestBase {
   RSP1 rsp1;
   RSP2 rsp2;
 
-  TestBase() : poly1(deg1, low_deg1), poly2(deg2, low_deg2) {
+  TestBase() : poly1(deg1), poly2(deg2) {
     for (int i = 0; i < poly1.mutable_data().total_coeffs(); ++i)
       poly1.mutable_data().coeffs()[i] = rsp1();
     for (int i = 0; i < poly2.mutable_data().total_coeffs(); ++i)
@@ -50,15 +49,11 @@ struct TestBase {
 
 template <typename... args> struct PlusTest;
 
-template <typename Scalar, typename Poly1, typename deg1, typename low_deg1,
-          typename PolyScalar1, typename Poly2, typename deg2,
-          typename low_deg2, typename PolyScalar2>
-struct PlusTest<Scalar, Poly1, deg1, low_deg1, PolyScalar1, Poly2, deg2,
-                low_deg2, PolyScalar2>
-    : TestBase<Poly1, deg1::value, low_deg1::value, Poly2, deg2::value,
-               low_deg2::value, Scalar> {
-  using Base = TestBase<Poly1, deg1::value, low_deg1::value, Poly2, deg2::value,
-                        low_deg2::value, Scalar>;
+template <typename Scalar, typename Poly1, typename deg1, typename PolyScalar1,
+          typename Poly2, typename deg2, typename PolyScalar2>
+struct PlusTest<Scalar, Poly1, deg1, PolyScalar1, Poly2, deg2, PolyScalar2>
+    : TestBase<Poly1, deg1::value, Poly2, deg2::value, Scalar> {
+  using Base = TestBase<Poly1, deg1::value, Poly2, deg2::value, Scalar>;
   static bool Check() { return PlusTest().test(); }
   bool test() const {
     bool valid = true;
@@ -78,15 +73,11 @@ struct PlusTest<Scalar, Poly1, deg1, low_deg1, PolyScalar1, Poly2, deg2,
 
 template <typename... args> struct MinusTest;
 
-template <typename Scalar, typename Poly1, typename deg1, typename low_deg1,
-          typename PolyScalar1, typename Poly2, typename deg2,
-          typename low_deg2, typename PolyScalar2>
-struct MinusTest<Scalar, Poly1, deg1, low_deg1, PolyScalar1, Poly2, deg2,
-                 low_deg2, PolyScalar2>
-    : TestBase<Poly1, deg1::value, low_deg1::value, Poly2, deg2::value,
-               low_deg2::value, Scalar> {
-  using Base = TestBase<Poly1, deg1::value, low_deg1::value, Poly2, deg2::value,
-                        low_deg2::value, Scalar>;
+template <typename Scalar, typename Poly1, typename deg1, typename PolyScalar1,
+          typename Poly2, typename deg2, typename PolyScalar2>
+struct MinusTest<Scalar, Poly1, deg1, PolyScalar1, Poly2, deg2, PolyScalar2>
+    : TestBase<Poly1, deg1::value, Poly2, deg2::value, Scalar> {
+  using Base = TestBase<Poly1, deg1::value, Poly2, deg2::value, Scalar>;
   static bool Check() { return MinusTest().test(); }
   bool test() const {
     bool valid = true;
@@ -105,15 +96,11 @@ struct MinusTest<Scalar, Poly1, deg1, low_deg1, PolyScalar1, Poly2, deg2,
 };
 template <typename... args> struct MulTest;
 
-template <typename Scalar, typename Poly1, typename deg1, typename low_deg1,
-          typename PolyScalar1, typename Poly2, typename deg2,
-          typename low_deg2, typename PolyScalar2>
-struct MulTest<Scalar, Poly1, deg1, low_deg1, PolyScalar1, Poly2, deg2,
-               low_deg2, PolyScalar2>
-    : TestBase<Poly1, deg1::value, low_deg1::value, Poly2, deg2::value,
-               low_deg2::value, Scalar> {
-  using Base = TestBase<Poly1, deg1::value, low_deg1::value, Poly2, deg2::value,
-                        low_deg2::value, Scalar>;
+template <typename Scalar, typename Poly1, typename deg1, typename PolyScalar1,
+          typename Poly2, typename deg2, typename PolyScalar2>
+struct MulTest<Scalar, Poly1, deg1, PolyScalar1, Poly2, deg2, PolyScalar2>
+    : TestBase<Poly1, deg1::value, Poly2, deg2::value, Scalar> {
+  using Base = TestBase<Poly1, deg1::value, Poly2, deg2::value, Scalar>;
   static bool Check() { return MulTest().test(); }
   bool test() const {
     bool valid = true;

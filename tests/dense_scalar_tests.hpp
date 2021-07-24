@@ -23,8 +23,7 @@ SOFTWARE.
 #define POLYNOMIALS_DENSE_SCALAR_TESTS_HPP
 
 #include "testing.hpp"
-template <typename Poly1, int deg1, int low_deg1, typename Scalar1,
-          typename Scalar2>
+template <typename Poly1, int deg1, typename Scalar1, typename Scalar2>
 struct ScalarTestBase {
   using ScalarP1 = typename Poly1::Scalar;
   using RS1 = Random<Scalar1>;
@@ -35,7 +34,7 @@ struct ScalarTestBase {
   RS2 rs2;
   RSP1 rsp1;
 
-  ScalarTestBase() : poly1(deg1, low_deg1) {
+  ScalarTestBase() : poly1(deg1) {
     for (int i = 0; i < poly1.mutable_data().total_coeffs(); ++i)
       poly1.mutable_data().coeffs()[i] = rsp1();
   }
@@ -45,12 +44,11 @@ struct ScalarTestBase {
 
 template <typename...> struct PlusScalarTest;
 
-template <typename Poly1, typename deg1, typename low_deg1, typename Scalar1,
-          typename Scalar2, typename PolyScalar>
-struct PlusScalarTest<Scalar1, Scalar2, Poly1, deg1, low_deg1, PolyScalar>
-    : ScalarTestBase<Poly1, deg1::value, low_deg1::value, Scalar1, Scalar2> {
-  using Base =
-      ScalarTestBase<Poly1, deg1::value, low_deg1::value, Scalar1, Scalar2>;
+template <typename Poly1, typename deg1, typename Scalar1, typename Scalar2,
+          typename PolyScalar>
+struct PlusScalarTest<Scalar1, Scalar2, Poly1, deg1, PolyScalar>
+    : ScalarTestBase<Poly1, deg1::value, Scalar1, Scalar2> {
+  using Base = ScalarTestBase<Poly1, deg1::value, Scalar1, Scalar2>;
   static bool Check() { return PlusScalarTest().test(); }
   bool test() const {
     bool valid = true;
@@ -74,12 +72,11 @@ struct PlusScalarTest<Scalar1, Scalar2, Poly1, deg1, low_deg1, PolyScalar>
 
 template <typename...> struct MinusScalarTest;
 
-template <typename Poly1, typename deg1, typename low_deg1, typename Scalar1,
-          typename Scalar2, typename PolyScalar>
-struct MinusScalarTest<Scalar1, Scalar2, Poly1, deg1, low_deg1, PolyScalar>
-    : ScalarTestBase<Poly1, deg1::value, low_deg1::value, Scalar1, Scalar2> {
-  using Base =
-      ScalarTestBase<Poly1, deg1::value, low_deg1::value, Scalar1, Scalar2>;
+template <typename Poly1, typename deg1, typename Scalar1, typename Scalar2,
+          typename PolyScalar>
+struct MinusScalarTest<Scalar1, Scalar2, Poly1, deg1, PolyScalar>
+    : ScalarTestBase<Poly1, deg1::value, Scalar1, Scalar2> {
+  using Base = ScalarTestBase<Poly1, deg1::value, Scalar1, Scalar2>;
   static bool Check() { return MinusScalarTest().test(); }
   bool test() const {
     bool valid = true;
@@ -103,12 +100,11 @@ struct MinusScalarTest<Scalar1, Scalar2, Poly1, deg1, low_deg1, PolyScalar>
 
 template <typename...> struct MulScalarTest;
 
-template <typename Poly1, typename deg1, typename low_deg1, typename Scalar1,
-          typename Scalar2, typename PolyScalar>
-struct MulScalarTest<Scalar1, Scalar2, Poly1, deg1, low_deg1, PolyScalar>
-    : ScalarTestBase<Poly1, deg1::value, low_deg1::value, Scalar1, Scalar2> {
-  using Base =
-      ScalarTestBase<Poly1, deg1::value, low_deg1::value, Scalar1, Scalar2>;
+template <typename Poly1, typename deg1, typename Scalar1, typename Scalar2,
+          typename PolyScalar>
+struct MulScalarTest<Scalar1, Scalar2, Poly1, deg1, PolyScalar>
+    : ScalarTestBase<Poly1, deg1::value, Scalar1, Scalar2> {
+  using Base = ScalarTestBase<Poly1, deg1::value, Scalar1, Scalar2>;
   static bool Check() { return MulScalarTest().test(); }
   bool test() const {
     bool valid = true;

@@ -33,7 +33,6 @@ constexpr Index Dynamic = Eigen::Dynamic;
 template <typename Derived> struct DensePolyBase;
 
 template <typename T, Index DegreeAtCompileTime,
-          Index LowDegreeAtCompileTime = 0,
           Index MaxDegreeAtCompileTime = DegreeAtCompileTime, int Options = 0>
 struct DensePoly;
 

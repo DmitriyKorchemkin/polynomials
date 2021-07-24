@@ -156,45 +156,30 @@ template <template <typename...> typename Result> struct Substitutor<Result> {
 template <template <typename...> typename Test, typename... Args>
 struct DegreeIterator;
 
-template <bool enabled, typename Real> struct ConditionalEvaluator;
+template <template <typename...> typename Test, typename deg_a, typename Scalar,
+          typename... Args>
+struct DegreeIterator<Test, deg_a, Scalar, Args...> {
+  template <typename... TT> using TestDeg = Test<deg_a, Scalar, TT...>;
 
-template <typename Real> struct ConditionalEvaluator<false, Real> {
-  static bool constexpr Check() { return true; }
-};
-
-template <typename Real> struct ConditionalEvaluator<true, Real> {
-  static bool Check() { return Real::Check(); }
-};
-
-template <template <typename...> typename Test, typename deg_a, typename deg_b,
-          typename Scalar, typename... Args>
-struct DegreeIterator<Test, deg_a, deg_b, Scalar, Args...> {
-  template <typename... TT> using TestDeg = Test<deg_a, deg_b, Scalar, TT...>;
-
-  static bool Check() {
-    return ConditionalEvaluator<deg_a::value >= deg_b::value,
-                                Substitutor<TestDeg, Args...>>::Check();
-  }
+  static bool Check() { return Substitutor<TestDeg, Args...>::Check(); }
 };
 
 // Traverses vector types
 template <template <typename...> typename Test, typename...>
 struct TypeIterator;
 
-template <template <typename...> typename Test, typename deg_t,
-          typename low_deg_t, typename Scalar, typename... Args>
-struct TypeIterator<Test, deg_t, low_deg_t, Scalar, Args...> {
+template <template <typename...> typename Test, typename deg_t, typename Scalar,
+          typename... Args>
+struct TypeIterator<Test, deg_t, Scalar, Args...> {
   static constexpr Eigen::Index deg = deg_t::value;
-  static constexpr Eigen::Index low_deg = low_deg_t::value;
 
-  using PolyTypes = std::tuple<
-      polynomials::DensePoly<Scalar, deg, low_deg, deg>,
-      polynomials::DensePoly<Scalar, deg, polynomials::Dynamic, deg>,
-      polynomials::DensePoly<Scalar, polynomials::Dynamic, polynomials::Dynamic,
-                             polynomials::Dynamic>>;
+  using PolyTypes =
+      std::tuple<polynomials::DensePoly<Scalar, deg, deg>,
+                 polynomials::DensePoly<Scalar, polynomials::Dynamic, deg>,
+                 polynomials::DensePoly<Scalar, polynomials::Dynamic,
+                                        polynomials::Dynamic>>;
 
-  template <typename... TT>
-  using TestDynamic = Test<deg_t, low_deg_t, Scalar, TT...>;
+  template <typename... TT> using TestDynamic = Test<deg_t, Scalar, TT...>;
 
   static bool Check() {
     return Substitutor<TestDynamic, PolyTypes, Dummy, Args...>::Check();
@@ -204,16 +189,14 @@ struct TypeIterator<Test, deg_t, low_deg_t, Scalar, Args...> {
 template <template <typename...> typename Test, typename...> struct MapIterator;
 
 template <template <typename...> typename Test, typename Poly, typename deg_t,
-          typename low_deg_t, typename Scalar, typename... Args>
-struct MapIterator<Test, deg_t, low_deg_t, Scalar, Poly, Args...> {
+          typename Scalar, typename... Args>
+struct MapIterator<Test, deg_t, Scalar, Poly, Args...> {
   static constexpr Eigen::Index deg = deg_t::value;
-  static constexpr Eigen::Index low_deg = low_deg_t::value;
   using PolyType = Poly;
   using MapTypes =
       std::tuple<PolyType, Eigen::Map<PolyType>, Eigen::Map<const PolyType>>;
 
-  template <typename... TT>
-  using TestDynamic = Test<TT..., deg_t, low_deg_t, Scalar>;
+  template <typename... TT> using TestDynamic = Test<TT..., deg_t, Scalar>;
 
   static bool Check() {
     return Substitutor<TestDynamic, Args..., MapTypes>::Check();
@@ -242,8 +225,8 @@ struct PolyPolyScalarTest {
   template <typename... Args> using PP = PolyIterator<P, Args...>;
 
   static bool Check() {
-    return PP<TestDegrees, TestDegrees, std::tuple<ScalarP1>, Dummy,
-              TestDegrees, TestDegrees, std::tuple<ScalarP2>, Dummy,
+    return PP<TestDegrees, std::tuple<ScalarP1>, Dummy, TestDegrees,
+              std::tuple<ScalarP2>, Dummy,
               std::tuple<ScalarType, JetType<ScalarType>>>::Check();
   }
 };
@@ -255,8 +238,8 @@ struct PolyScalarScalarTest {
   template <typename... Args> using P = PolyIterator<Test, Args...>;
 
   static bool Check() {
-    return P<TestDegrees, TestDegrees, std::tuple<ScalarP1, JetType<ScalarP1>>,
-             Dummy, std::tuple<ScalarType, JetType<ScalarType>>,
+    return P<TestDegrees, std::tuple<ScalarP1, JetType<ScalarP1>>, Dummy,
+             std::tuple<ScalarType, JetType<ScalarType>>,
              std::tuple<ScalarType, JetType<ScalarType>>>::Check();
   }
 };
