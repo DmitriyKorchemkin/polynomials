@@ -347,6 +347,101 @@ auto operator-(const DensePolyBase<DerivedLhs> &lhs,
   return sum_like_op<DerivedLhs, DerivedRhs, SubOp>(lhs, rhs);
 }
 
+template <typename T> struct is_map : std::false_type {};
+
+template <typename T> struct is_map<Eigen::Map<T>> : std::true_type {};
+
+template <typename T> constexpr bool is_map_v = is_map<T>::value;
+
+template <typename T> struct is_const_map : std::false_type {};
+
+template <typename T>
+struct is_const_map<Eigen::Map<const T>> : std::true_type {};
+
+template <typename T> constexpr bool is_const_map_v = is_const_map<T>::value;
+
+template <typename Lhs, typename Rhs> constexpr bool potentially_assignable() {
+  if (!std::is_same_v<typename Lhs::Scalar, typename Rhs::Scalar>)
+    return false;
+  if (Lhs::MaxDegreeAtCompileTime != Dynamic &&
+      Lhs::MaxDegreeAtCompileTime < Rhs::MaxDegreeAtCompileTime)
+    return false;
+  if (is_const_map_v<Lhs>)
+    return false;
+  return true;
+}
+
+template <typename Lhs, typename Rhs>
+constexpr bool potentially_assignable_v = potentially_assignable<Lhs, Rhs>();
+
+template <typename Lhs, typename Rhs,
+          bool Static = Lhs::DegreeAtCompileTime !=
+                        Dynamic &&Rhs::DegreeAtCompileTime != Dynamic>
+struct AssignOp;
+
+template <typename Lhs, typename Rhs> struct AssignOp<Lhs, Rhs, true> {
+  Lhs &operator()(Lhs &lhs, const Rhs &rhs) const {
+    static_assert(Lhs::DegreeAtCompileTime >= Rhs::DegreeAtCompileTime,
+                  "Cannot assign polynomial with larger degree to polynomial "
+                  "with smaller");
+    constexpr Index head = Rhs::CoeffsCompileTime;
+    constexpr Index tail = Lhs::CoeffsCompileTime - Rhs::CoeffsCompileTime;
+    if constexpr (head >= 0) {
+      lhs.coeffs().template head<head>() = rhs.coeffs();
+    }
+    if constexpr (tail >= 0) {
+      lhs.coeffs().template tail<tail>().setZero();
+    }
+    return lhs;
+  }
+};
+
+template <typename Lhs, typename Rhs> struct AssignOp<Lhs, Rhs, false> {
+  Lhs &operator()(Lhs &lhs, const Rhs &rhs) const {
+    static_assert(Lhs::DegreeAtCompileTime == Dynamic ||
+                  Rhs::DegreeAtCompileTime <= Lhs::DegreeAtCompileTime);
+    if constexpr (Lhs::MaxDegreeAtCompileTime != Dynamic &&
+                  Rhs::DegreeAtCompileTime == Dynamic) {
+      POLYNOMIALS_ASSERT(Lhs::MaxDegreeAtCompileTime >= rhs.degree(),
+                         "Not enough storage to assign "
+                             << rhs.degree() << "-degree polynomial");
+    }
+    if constexpr (is_map_v<typename Lhs::Derived>) {
+      POLYNOMIALS_ASSERT(lhs.degree() >= rhs.degree(),
+                         "Eigen::Map is not resizeable, but need to assign "
+                             << rhs.degree() << "-degree polynomial to "
+                             << lhs.degree() << " map");
+
+    } else {
+
+      lhs.resize(Lhs::DegreeAtCompileTime == Dynamic
+                     ? rhs.degree()
+                     : Lhs::DegreeAtCompileTime);
+    }
+    const Index head = rhs.total_coeffs();
+    const Index tail = lhs.total_coeffs() - head;
+    if (head) {
+      lhs.coeffs().head(head) = rhs.coeffs();
+    }
+    if (tail) {
+      lhs.coeffs().tail(tail).setZero();
+    }
+    return lhs;
+  }
+};
+
+template <typename Derived1>
+template <typename Derived2>
+Derived1 &
+DensePolyBase<Derived1>::operator=(const DensePolyBase<Derived2> &rhs) {
+  using Lhs = DensePolyBase<Derived1>;
+  using Rhs = DensePolyBase<Derived2>;
+  static_assert(potentially_assignable_v<Lhs, Rhs>,
+                "Incompatible types to assign");
+
+  return AssignOp<Lhs, Rhs>()(*this, rhs).derived();
+}
+
 template <typename Derived, char var = 'x'>
 std::ostream &operator<<(std::ostream &os, const DensePolyBase<Derived> &poly) {
   using Poly = DensePolyBase<Derived>;

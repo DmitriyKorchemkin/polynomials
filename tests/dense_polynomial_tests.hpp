@@ -132,8 +132,15 @@ struct is_map<Eigen::Map<P>> : std::true_type {};
 template <typename P>
 constexpr bool is_map_v = is_map<P>::value;
 
-template<typename Poly1, int deg1, typename Poly2, int deg2>
-constexpr bool is_assignable()  {
+template <typename P> struct is_const_map : std::false_type {};
+
+template <typename P>
+struct is_const_map<Eigen::Map<const P>> : std::true_type {};
+
+template <typename P> constexpr bool is_const_map_v = is_const_map<P>::value;
+
+template <typename Poly1, int deg1, typename Poly2, int deg2>
+constexpr bool is_copyconstructible() {
   if (!std::is_same_v<typename Poly1::Scalar, typename Poly2::Scalar>) return false;
   if (Poly1::DegreeAtCompileTime != polynomials::Dynamic && deg1 < deg2) return false;
   if (Poly1::MaxDegreeAtCompileTime != polynomials::Dynamic && Poly1::MaxDegreeAtCompileTime < deg2) return false;
@@ -141,10 +148,12 @@ constexpr bool is_assignable()  {
   return true;
 }
 
-template<typename Poly1, int deg1, typename Poly2, int deg2>
-constexpr bool is_assignable_v = is_assignable<Poly1, deg1, Poly2, deg2>();
+template <typename Poly1, int deg1, typename Poly2, int deg2>
+constexpr bool
+    is_copyconstructible_v = is_copyconstructible<Poly1, deg1, Poly2, deg2>();
 
-template <typename Poly1, int deg1, typename Poly2, int deg2, typename Scalar, bool assignable =is_assignable_v<Poly1, deg1, Poly2, deg2>>
+template <typename Poly1, int deg1, typename Poly2, int deg2, typename Scalar,
+          bool assignable = is_copyconstructible_v<Poly1, deg1, Poly2, deg2>>
 struct CopyTestImpl;
 
 template <typename Poly1, int deg1, typename Poly2, int deg2, typename Scalar>
@@ -179,11 +188,73 @@ struct CopyTestImpl<Poly1, deg1, Poly2, deg2, Scalar, true> : TestBase<Poly1, de
 
 template <typename Scalar, typename Poly1, typename deg1, typename PolyScalar1,
           typename Poly2, typename deg2, typename PolyScalar2>
-struct CopyTest<Scalar, Poly1, deg1, PolyScalar1, Poly2, deg2, PolyScalar2>
-    : CopyTestImpl<Poly1, deg1::value, Poly2, deg2::value, Scalar> {
-      static constexpr bool Check() {
-        return CopyTestImpl<Poly1, deg1::value, Poly2, deg2::value, Scalar>::Check();
-      }
+struct CopyTest<Scalar, Poly1, deg1, PolyScalar1, Poly2, deg2, PolyScalar2> {
+  static constexpr bool Check() {
+    return CopyTestImpl<Poly1, deg1::value, Poly2, deg2::value,
+                        Scalar>::Check();
+  }
+};
+
+template <typename Poly1, int deg1, typename Poly2, int deg2>
+constexpr bool is_assignable() {
+  if (!std::is_same_v<typename Poly1::Scalar, typename Poly2::Scalar>)
+    return false;
+  if (Poly1::DegreeAtCompileTime != polynomials::Dynamic && deg1 < deg2)
+    return false;
+  if (Poly1::MaxDegreeAtCompileTime != polynomials::Dynamic &&
+      Poly1::MaxDegreeAtCompileTime < deg2)
+    return false;
+  if (is_const_map_v<Poly1>)
+    return false;
+  if (is_map_v<Poly1> && deg1 < deg2)
+    return false;
+  return true;
+}
+
+template <typename Poly1, int deg1, typename Poly2, int deg2>
+constexpr bool is_assignable_v = is_assignable<Poly1, deg1, Poly2, deg2>();
+
+template <typename Poly1, int deg1, typename Poly2, int deg2, typename Scalar,
+          bool assignable = is_assignable_v<Poly1, deg1, Poly2, deg2>>
+struct AssignTestImpl;
+
+template <typename Poly1, int deg1, typename Poly2, int deg2, typename Scalar>
+struct AssignTestImpl<Poly1, deg1, Poly2, deg2, Scalar, false> {
+  static constexpr bool Check() { return true; }
+};
+
+template <typename Poly1, int deg1, typename Poly2, int deg2, typename Scalar>
+struct AssignTestImpl<Poly1, deg1, Poly2, deg2, Scalar, true>
+    : TestBase<Poly1, deg1, Poly2, deg2, Scalar> {
+  using Base = TestBase<Poly1, deg1, Poly2, deg2, Scalar>;
+
+  static bool Check() { return AssignTestImpl().test(); }
+
+  bool test() {
+    bool valid = true;
+    auto &f = *Base::poly1;
+    const auto &g = *Base::poly2;
+    f = g;
+    const auto exp_degree = g.degree();
+    for (int i = 0; i < 2 * exp_degree; ++i) {
+      const auto s = Base::rs();
+      const auto got_g = f(s);
+      const auto exp_g = g(s);
+      CHECK_VALID(approximately_equal(got_g, exp_g));
+    }
+    return valid;
+  }
+};
+
+template <typename... args> struct AssignTest;
+
+template <typename Scalar, typename Poly1, typename deg1, typename PolyScalar1,
+          typename Poly2, typename deg2, typename PolyScalar2>
+struct AssignTest<Scalar, Poly1, deg1, PolyScalar1, Poly2, deg2, PolyScalar2> {
+  static constexpr bool Check() {
+    return AssignTestImpl<Poly1, deg1::value, Poly2, deg2::value,
+                          Scalar>::Check();
+  }
 };
 
 #endif

@@ -61,7 +61,8 @@ struct traits<Map<const polynomials::DensePoly<Scalar_, DegreeAtCompileTime,
 
 namespace polynomials {
 
-template <typename Derived> struct DensePolyBase {
+template <typename Derived_> struct DensePolyBase {
+  using Derived = Derived_;
   using Scalar = typename Eigen::internal::traits<Derived>::Scalar;
   template <typename T>
   using OpType = typename Eigen::ScalarBinaryOpTraits<Scalar, T>::ReturnType;
@@ -101,6 +102,11 @@ template <typename Derived> struct DensePolyBase {
     return CoeffsCompileTime == Dynamic ? coeffs().size() : CoeffsCompileTime;
   }
 
+  void resize(const Index degree) { derived().resize(degree); }
+
+  template <typename OtherDerived>
+  Derived &operator=(const DensePolyBase<OtherDerived> &other);
+
 protected:
   auto &derived() const { return *static_cast<const Derived *>(this); }
   auto &derived() { return *static_cast<Derived *>(this); }
@@ -139,7 +145,8 @@ template <typename T, Index DegreeAtCompileTime_, Index MaxDegreeAtCompileTime_,
 struct DensePoly : DensePolyBase<DensePoly<T, DegreeAtCompileTime_,
                                            MaxDegreeAtCompileTime_, Options>> {
   using Scalar = T;
-  using Base = DensePolyBase<DensePoly<T, DegreeAtCompileTime_, MaxDegreeAtCompileTime_>>;
+  using Base = DensePolyBase<
+      DensePoly<T, DegreeAtCompileTime_, MaxDegreeAtCompileTime_>>;
   static constexpr Index DegreeAtCompileTime = DegreeAtCompileTime_;
   static constexpr Index MaxDegreeAtCompileTime = MaxDegreeAtCompileTime_;
 
@@ -149,17 +156,25 @@ struct DensePoly : DensePolyBase<DensePoly<T, DegreeAtCompileTime_,
       max_num_coeffs(MaxDegreeAtCompileTime);
   using Coeffs = Eigen::Matrix<Scalar, CoeffsCompileTime, 1, Options,
                                MaxCoeffsCompileTime, 1>;
+  using Base::operator=;
 
   DensePoly(const Index degree = DegreeAtCompileTime)
       : coeffs_(degree + 1, 1) {}
 
   template <typename OtherDerived>
-  DensePoly(const DensePolyBase<OtherDerived> &other) : DensePoly(DegreeAtCompileTime == Dynamic ? other.degree() : DegreeAtCompileTime) {
+  DensePoly(const DensePolyBase<OtherDerived> &other)
+      : DensePoly(DegreeAtCompileTime == Dynamic ? other.degree()
+                                                 : DegreeAtCompileTime) {
     using Other = DensePolyBase<OtherDerived>;
-    static_assert(std::is_same_v<Scalar, typename Other::Scalar>, "Incompatible scalar types for copy ctor");
-    static_assert(DegreeAtCompileTime == Dynamic || Other::DegreeAtCompileTime <= DegreeAtCompileTime);
-    if constexpr (MaxDegreeAtCompileTime != Dynamic && Other::DegreeAtCompileTime == Dynamic) {
-    POLYNOMIALS_ASSERT(MaxDegreeAtCompileTime >= other.degree(), "Not enough storage to assign " << other.degree() << "-degree polynomial");
+    static_assert(std::is_same_v<Scalar, typename Other::Scalar>,
+                  "Incompatible scalar types for copy ctor");
+    static_assert(DegreeAtCompileTime == Dynamic ||
+                  Other::DegreeAtCompileTime <= DegreeAtCompileTime);
+    if constexpr (MaxDegreeAtCompileTime != Dynamic &&
+                  Other::DegreeAtCompileTime == Dynamic) {
+      POLYNOMIALS_ASSERT(MaxDegreeAtCompileTime >= other.degree(),
+                         "Not enough storage to assign "
+                             << other.degree() << "-degree polynomial");
     }
 
     const Index head = other.total_coeffs();
@@ -172,10 +187,8 @@ struct DensePoly : DensePolyBase<DensePoly<T, DegreeAtCompileTime_,
     }
   }
 
-  DensePoly(const DensePoly&) = default;
-  DensePoly(DensePoly&&) = default;
-  DensePoly& operator=(const DensePoly&) = default;
-  DensePoly& operator=(DensePoly&&) = default;
+  DensePoly(const DensePoly &) = default;
+  DensePoly(DensePoly &&) = default;
 
   const Coeffs &coeffs() const { return coeffs_; }
   Coeffs &coeffs() { return coeffs_; }
@@ -185,8 +198,13 @@ struct DensePoly : DensePolyBase<DensePoly<T, DegreeAtCompileTime_,
                                           : DegreeAtCompileTime;
   }
 
+  void resize(const Index degree) { coeffs_.resize(degree + 1, 1); }
+
   const Scalar *data() const { return coeffs_.data(); }
   Scalar *data() { return coeffs_.data(); }
+
+  DensePoly &operator=(const DensePoly &) = default;
+  DensePoly &operator=(DensePoly &&) = default;
 
 protected:
   Coeffs coeffs_;
@@ -206,12 +224,15 @@ public:
   using Mapped =
       typename polynomials::DensePoly<T, DegreeAtCompileTime_,
                                       MaxDegreeAtCompileTime_, Options>;
+  using Base = polynomials::DensePolyBase<Map<polynomials::DensePoly<
+      T, DegreeAtCompileTime_, MaxDegreeAtCompileTime_, Options>>>;
   static constexpr Index DegreeAtCompileTime = Mapped::DegreeAtCompileTime;
   static constexpr Index MaxDegreeAtCompileTime =
       Mapped::MaxDegreeAtCompileTime;
   static constexpr Index CoeffsCompileTime = Mapped::CoeffsCompileTime;
   static constexpr Index MaxCoeffsCompileTime = Mapped::MaxCoeffsCompileTime;
 
+  using Base::operator=;
   using Coeffs = Eigen::Map<typename Mapped::Coeffs>;
 
   Map(T *data, const Index degree = DegreeAtCompileTime)
@@ -227,6 +248,13 @@ public:
 
   const Scalar *data() const { return coeffs_.data(); }
   Scalar *data() { return coeffs_.data(); }
+
+  void resize(const Index degree) { coeffs_.resize(degree + 1); }
+
+  Map &operator=(const Map &map) {
+    Base::template operator=<Map>(map);
+    return *this;
+  }
 
 protected:
   Coeffs coeffs_;
