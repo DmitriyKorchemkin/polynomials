@@ -139,6 +139,7 @@ template <typename T, Index DegreeAtCompileTime_, Index MaxDegreeAtCompileTime_,
 struct DensePoly : DensePolyBase<DensePoly<T, DegreeAtCompileTime_,
                                            MaxDegreeAtCompileTime_, Options>> {
   using Scalar = T;
+  using Base = DensePolyBase<DensePoly<T, DegreeAtCompileTime_, MaxDegreeAtCompileTime_>>;
   static constexpr Index DegreeAtCompileTime = DegreeAtCompileTime_;
   static constexpr Index MaxDegreeAtCompileTime = MaxDegreeAtCompileTime_;
 
@@ -151,6 +152,30 @@ struct DensePoly : DensePolyBase<DensePoly<T, DegreeAtCompileTime_,
 
   DensePoly(const Index degree = DegreeAtCompileTime)
       : coeffs_(degree + 1, 1) {}
+
+  template <typename OtherDerived>
+  DensePoly(const DensePolyBase<OtherDerived> &other) : DensePoly(DegreeAtCompileTime == Dynamic ? other.degree() : DegreeAtCompileTime) {
+    using Other = DensePolyBase<OtherDerived>;
+    static_assert(std::is_same_v<Scalar, typename Other::Scalar>, "Incompatible scalar types for copy ctor");
+    static_assert(DegreeAtCompileTime == Dynamic || Other::DegreeAtCompileTime <= DegreeAtCompileTime);
+    if constexpr (MaxDegreeAtCompileTime != Dynamic && Other::DegreeAtCompileTime == Dynamic) {
+    POLYNOMIALS_ASSERT(MaxDegreeAtCompileTime >= other.degree(), "Not enough storage to assign " << other.degree() << "-degree polynomial");
+    }
+
+    const Index head = other.total_coeffs();
+    const Index tail = Base::total_coeffs() - head;
+    if (head) {
+      coeffs_.head(head) = other.coeffs();
+    }
+    if (tail) {
+      coeffs_.tail(tail).setZero();
+    }
+  }
+
+  DensePoly(const DensePoly&) = default;
+  DensePoly(DensePoly&&) = default;
+  DensePoly& operator=(const DensePoly&) = default;
+  DensePoly& operator=(DensePoly&&) = default;
 
   const Coeffs &coeffs() const { return coeffs_; }
   Coeffs &coeffs() { return coeffs_; }

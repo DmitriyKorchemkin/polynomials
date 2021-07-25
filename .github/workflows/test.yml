@@ -34,7 +34,7 @@ jobs:
           sudo apt update && sudo apt build-dep libceres-dev && sudo apt install -y clang
           git clone https://github.com/ceres-solver/ceres-solver.git ${{github.workspace}}/ceres-solver
           ccache -s
-          cd ${{github.workspace}}/ceres-solver && mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Release -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache && make -j `nproc` && sudo make install
+          cd ${{github.workspace}}/ceres-solver && mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Release -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF -DBUILD_BENCHMARKS=OFF && make -j `nproc` && sudo make install
           ccache -s
 
       - name: cmake
