@@ -38,6 +38,9 @@ struct DensePoly;
 
 template <typename Polynomial> struct QuotientRingMulX;
 
+template <typename Poly, template <typename> typename Algo,
+          typename Scalar = typename Poly::Scalar>
+struct RootFinder;
 } // namespace polynomials
 
 #endif

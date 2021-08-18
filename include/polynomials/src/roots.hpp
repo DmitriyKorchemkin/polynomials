@@ -217,8 +217,7 @@ private:
   CompanionMatrix matrix;
 };
 
-template <typename Poly, template <typename> typename Algo,
-          typename Scalar = typename Poly::Scalar>
+template <typename Poly, template <typename> typename Algo, typename Scalar>
 struct RootFinder {
   using Algorithm = Algo<Poly>;
   using ComplexRoots = typename Algorithm::ComplexRoots;
@@ -235,7 +234,7 @@ struct RootFinder {
   }
 
   template <typename... Args>
-  static RealRoots complex_roots(const Poly &p, Args... args) {
+  static ComplexRoots complex_roots(const Poly &p, Args... args) {
     return Algorithm(p).complex_roots(args...);
   }
 };
@@ -285,6 +284,18 @@ struct RootFinder<Poly, Algo, ceres::Jet<Scalar, N>> {
     }
     res.v /= denom;
     return res;
+  }
+
+  template <typename... Args>
+  static JetComplexRoots complex_roots(const Poly &p, Args... args) {
+    const ScalarPoly scalar = cast(p);
+    const ScalarComplexRoots scalar_roots =
+        ScalarRootFinder::complex_roots(scalar, args...);
+    const Index num_roots = scalar_roots.size();
+    JetComplexRoots jet(num_roots);
+    for (Index i = 0; i < num_roots; ++i)
+      jet[i] = process_root(p, scalar, scalar_roots[i]);
+    return jet;
   }
 
   template <typename... Args>

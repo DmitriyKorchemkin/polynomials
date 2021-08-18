@@ -103,6 +103,21 @@ template <typename Derived_> struct DensePolyBase {
     return result;
   }
 
+  template <template <typename> typename Algorithm = QuotientRingMulX>
+  auto roots() const {
+    return RootFinder<Derived, Algorithm>::complex_roots(*this);
+  }
+
+  template <template <typename> typename Algorithm = QuotientRingMulX>
+  auto real_roots() const {
+    return RootFinder<Derived, Algorithm>::real_roots(*this);
+  }
+
+  template <template <typename> typename Algorithm = QuotientRingMulX>
+  auto positive_real_roots() const {
+    return RootFinder<Derived, Algorithm>::positive_real_roots(*this);
+  }
+
   auto operator[](const Index &i) const { return coeffs()[i]; }
   auto &operator[](const Index &i) { return coeffs()[i]; }
 

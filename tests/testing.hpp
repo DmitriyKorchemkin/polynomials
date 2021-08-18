@@ -41,14 +41,21 @@ template <typename T, int n> struct scalar_type<ceres::Jet<T, n>> {
 template <typename T> using scalar_type_t = typename scalar_type<T>::type;
 
 // doctest::Approx is not templated... what a shame
+template <typename T> struct inner_type { using type = T; };
+
+template <typename T> struct inner_type<std::complex<T>> { using type = T; };
+
+template <typename T> using inner_type_t = typename inner_type<T>::type;
+
 template <typename T1, typename T2>
 bool approximately_equal(const T1 &a, const T2 &b) {
   using std::abs;
   using std::isfinite;
   using std::max;
   using std::sqrt;
-  const T1 eps = sqrt(std::numeric_limits<T1>::epsilon());
-  return abs(a - b) < eps * (T1(1.) + max(abs(a), abs(b)));
+  using T = inner_type_t<T1>;
+  const T eps = sqrt(std::numeric_limits<T>::epsilon());
+  return abs(a - b) < eps * (T(1.) + max(abs(a), abs(b)));
 }
 
 template <typename T, int N>
@@ -65,7 +72,7 @@ bool approximately_equal_matrices(const Eigen::MatrixBase<A> &a,
   using std::abs;
   using std::isfinite;
   using std::max;
-  using T = typename A::Scalar;
+  using T = inner_type_t<typename A::Scalar>;
   const T eps = sqrt(std::numeric_limits<T>::epsilon());
   const T diff_norm = (a - b).template lpNorm<Eigen::Infinity>();
   const T a_norm = a.template lpNorm<Eigen::Infinity>();

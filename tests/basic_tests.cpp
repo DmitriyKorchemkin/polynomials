@@ -73,46 +73,35 @@ TEST_CASE("PolyOps") {
 TEST_CASE("Roots") {
   bool valid = true;
 
-  using QMX = QuotientRingMulX<Quadric>;
   Quadric q;
   q.coeffs() << -6., -1., 1.;
-  QMX op_mul_x(q);
 
-  const auto q1_cr = op_mul_x.complex_roots();
-  const auto q1_rr = op_mul_x.real_roots();
-  const auto q1_pr = op_mul_x.positive_real_roots();
+  const auto q1_cr = q.roots();
+  const auto q1_rr = q.real_roots();
+  const auto q1_pr = q.positive_real_roots();
   CHECK_VALID(q1_cr.size() == 2);
   CHECK_VALID(q1_rr.size() == 2);
   CHECK_VALID(q1_pr.size() == 1);
 
-  using RF = RootFinder<Quadric, QuotientRingMulX>;
-  const auto q1_rr2 = RF::real_roots(q);
-  CHECK_VALID(q1_rr2.size() == 2);
-  const auto q1_pr2 = RF::positive_real_roots(q);
-  CHECK_VALID(q1_pr2.size() == 1);
-
   q.coeffs() << 6., 1., 1.;
-  op_mul_x = QMX(q);
-  const auto q2_cr = op_mul_x.complex_roots();
-  const auto q2_rr = op_mul_x.real_roots();
+  const auto q2_cr = q.roots();
+  const auto q2_rr = q.real_roots();
   CHECK_VALID(q2_cr.size() == 2);
   CHECK_VALID(q2_rr.size() == 0);
 
-  using CMX = QuotientRingMulX<Cubic>;
   Cubic c;
   c.coeffs() << -5., 3., 1., 1.;
-  CMX op_mul_xc(c);
 
-  const auto c1_cr = op_mul_xc.complex_roots();
-  const auto c1_rr = op_mul_xc.real_roots();
-  const auto c1_pr = op_mul_xc.positive_real_roots();
+  const auto c1_cr = c.roots();
+  const auto c1_rr = c.real_roots();
+  const auto c1_pr = c.positive_real_roots();
   CHECK_VALID(c1_cr.size() == 3);
   CHECK_VALID(c1_rr.size() == 1);
   CHECK_VALID(c1_pr.size() == 1);
   CHECK_VALID(approximately_equal(c1_pr[0], 1.));
 }
 
-TEST_CASE("Jet roots") {
+TEST_CASE("Jet roots real") {
   bool valid = true;
 
   using Jet = ceres::Jet<double, 3>;
@@ -121,8 +110,7 @@ TEST_CASE("Jet roots") {
   JetQuadric jq;
   jq.coeffs() << Jet(-6., 0), Jet(-1., 1), Jet(1., 2);
 
-  using RF = RootFinder<JetQuadric, QuotientRingMulX>;
-  auto real_roots = RF::real_roots(jq);
+  auto real_roots = jq.real_roots();
   CHECK_VALID(real_roots.size() == 2);
 
   if (real_roots[0] > real_roots[1])
@@ -137,8 +125,34 @@ TEST_CASE("Jet roots") {
 
   J_got.row(0) = real_roots[0].v.transpose();
   J_got.row(1) = real_roots[1].v.transpose();
-
   CHECK_VALID(approximately_equal_matrices(J_exp, J_got));
+}
+
+TEST_CASE("Jet roots complex") {
+  bool valid = true;
+
+  using Jet = ceres::Jet<double, 3>;
+  using JetQuadric = polynomials::DensePoly<Jet, 2>;
+
+  JetQuadric jq;
+  jq.coeffs() << Jet(2., 0), Jet(2., 1), Jet(1., 2);
+  auto complex_roots = jq.roots();
+  if (complex_roots[0].a.imag() > complex_roots[1].a.imag())
+    std::swap(complex_roots[0], complex_roots[1]);
+
+  CHECK_VALID(approximately_equal(complex_roots[0].a, std::complex(-1., -1.)));
+  CHECK_VALID(approximately_equal(complex_roots[1].a, std::complex(-1., 1.)));
+
+  Eigen::Matrix<std::complex<double>, 2, 3> J_exp_cmplx, J_got_cmplx;
+
+  J_exp_cmplx.row(0) << std::complex(0., -0.5), std::complex(-0.5, 0.5),
+      std::complex(1., 0.);
+  J_exp_cmplx.row(1) << std::complex(0., 0.5), std::complex(-0.5, -0.5),
+      std::complex(1., 0.);
+
+  J_got_cmplx.row(0) = complex_roots[0].v.transpose();
+  J_got_cmplx.row(1) = complex_roots[1].v.transpose();
+  CHECK_VALID(approximately_equal_matrices(J_exp_cmplx, J_got_cmplx));
 }
 
 TEST_CASE("BasicProps") {
