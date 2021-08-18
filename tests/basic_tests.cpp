@@ -40,8 +40,8 @@ TEST_CASE("PolyOps") {
   Quadric q;
   Cubic c;
   PolyX x;
-  q.coeffs() << 1., -2., 3.;
-  c.coeffs() << -4., 5., -6., 7.;
+  q << 1., -2., 3.;
+  c << -4., 5., -6., 7.;
 
   bool valid = true;
 
@@ -74,7 +74,7 @@ TEST_CASE("Roots") {
   bool valid = true;
 
   Quadric q;
-  q.coeffs() << -6., -1., 1.;
+  q << -6., -1., 1.;
 
   const auto q1_cr = q.roots();
   const auto q1_rr = q.real_roots();
@@ -83,14 +83,14 @@ TEST_CASE("Roots") {
   CHECK_VALID(q1_rr.size() == 2);
   CHECK_VALID(q1_pr.size() == 1);
 
-  q.coeffs() << 6., 1., 1.;
+  q << 6., 1., 1.;
   const auto q2_cr = q.roots();
   const auto q2_rr = q.real_roots();
   CHECK_VALID(q2_cr.size() == 2);
   CHECK_VALID(q2_rr.size() == 0);
 
   Cubic c;
-  c.coeffs() << -5., 3., 1., 1.;
+  c << -5., 3., 1., 1.;
 
   const auto c1_cr = c.roots();
   const auto c1_rr = c.real_roots();
@@ -108,7 +108,7 @@ TEST_CASE("Jet roots real") {
   using JetQuadric = polynomials::DensePoly<Jet, 2>;
 
   JetQuadric jq;
-  jq.coeffs() << Jet(-6., 0), Jet(-1., 1), Jet(1., 2);
+  jq << Jet(-6., 0), Jet(-1., 1), Jet(1., 2);
 
   auto real_roots = jq.real_roots();
   CHECK_VALID(real_roots.size() == 2);
@@ -135,7 +135,7 @@ TEST_CASE("Jet roots complex") {
   using JetQuadric = polynomials::DensePoly<Jet, 2>;
 
   JetQuadric jq;
-  jq.coeffs() << Jet(2., 0), Jet(2., 1), Jet(1., 2);
+  jq << Jet(2., 0), Jet(2., 1), Jet(1., 2);
   auto complex_roots = jq.roots();
   if (complex_roots[0].a.imag() > complex_roots[1].a.imag())
     std::swap(complex_roots[0], complex_roots[1]);

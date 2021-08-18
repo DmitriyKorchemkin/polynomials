@@ -103,6 +103,8 @@ template <typename Derived_> struct DensePolyBase {
     return result;
   }
 
+  auto operator<<(const Scalar &s) { return coeffs().operator<<(s); }
+
   template <template <typename> typename Algorithm = QuotientRingMulX>
   auto roots() const {
     return RootFinder<Derived, Algorithm>::complex_roots(*this);
