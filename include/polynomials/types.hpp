@@ -36,6 +36,8 @@ template <typename T, Index DegreeAtCompileTime,
           Index MaxDegreeAtCompileTime = DegreeAtCompileTime, int Options = 0>
 struct DensePoly;
 
+template <typename Polynomial> struct QuotientRingMulX;
+
 } // namespace polynomials
 
 #endif

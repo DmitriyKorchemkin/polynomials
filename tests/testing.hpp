@@ -41,13 +41,14 @@ template <typename T, int n> struct scalar_type<ceres::Jet<T, n>> {
 template <typename T> using scalar_type_t = typename scalar_type<T>::type;
 
 // doctest::Approx is not templated... what a shame
-template <typename T> bool approximately_equal(const T &a, const T &b) {
+template <typename T1, typename T2>
+bool approximately_equal(const T1 &a, const T2 &b) {
   using std::abs;
   using std::isfinite;
   using std::max;
   using std::sqrt;
-  const T eps = sqrt(std::numeric_limits<T>::epsilon());
-  return abs(a - b) < eps * (T(1.) + max(abs(a), abs(b)));
+  const T1 eps = sqrt(std::numeric_limits<T1>::epsilon());
+  return abs(a - b) < eps * (T1(1.) + max(abs(a), abs(b)));
 }
 
 template <typename T, int N>
@@ -56,6 +57,20 @@ bool approximately_equal(const ceres::Jet<T, N> &a, const ceres::Jet<T, N> &b) {
   for (int i = 0; i < N && equal; ++i)
     equal &= approximately_equal(a.v[i], b.v[i]);
   return equal;
+}
+
+template <typename A, typename B>
+bool approximately_equal_matrices(const Eigen::MatrixBase<A> &a,
+                                  const Eigen::MatrixBase<B> &b) {
+  using std::abs;
+  using std::isfinite;
+  using std::max;
+  using T = typename A::Scalar;
+  const T eps = sqrt(std::numeric_limits<T>::epsilon());
+  const T diff_norm = (a - b).template lpNorm<Eigen::Infinity>();
+  const T a_norm = a.template lpNorm<Eigen::Infinity>();
+  const T b_norm = b.template lpNorm<Eigen::Infinity>();
+  return diff_norm < eps * (T(1.) + max(a_norm, b_norm));
 }
 
 struct RngBase {

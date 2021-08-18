@@ -21,13 +21,17 @@
 # ##############################################################################
 find_package(Ceres REQUIRED)
 
+macro(setup_test target_name source_file)
+  add_executable(${target_name} ${source_file}.cpp)
+  target_link_libraries(${target_name} polynomials doctest::doctest Ceres::ceres)
+  target_compile_options(${target_name} PRIVATE -Wall -Wextra -Werror --pedantic)
+  add_test(NAME ${target_name} COMMAND $<TARGET_FILE:${target_name}>)
+endmacro()
+
 macro(add_new_test_real name test arg1 arg2)
   set(target test_${name}_${test}_${arg1}_${arg2})
-  add_executable(${target} ${name}.cpp)
-  target_link_libraries(${target} polynomials doctest::doctest Ceres::ceres)
-  target_compile_options(${target} PRIVATE -Wall -Wextra -Werror --pedantic)
+  setup_test(${target} ${name})
   target_compile_options(${target} PRIVATE -DTEST_TYPE=${test} -DLHS_TYPE=${arg1} -DRHS_TYPE=${arg2})
-  add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
 endmacro()
 
 macro(add_new_poly_poly_test test)
@@ -41,3 +45,5 @@ foreach(op IN ITEMS Plus Minus Mul Copy Assign)
   add_new_poly_poly_test(${op}Test)
 endforeach()
 add_new_test_real(dense_poly_scalar_scalar ScalarTests "" "")
+
+setup_test(test_basic_interface basic_tests)

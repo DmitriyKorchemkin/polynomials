@@ -88,6 +88,21 @@ template <typename Derived_> struct DensePolyBase {
     return result;
   }
 
+  template <typename T = Scalar> auto df(const T &at) const -> OpType<T> {
+    using Res = OpType<T>;
+    const auto &C = coeffs();
+
+    const Index n_coeffs = total_coeffs();
+    Res result(C[n_coeffs - 1] * T(n_coeffs - 1));
+
+    for (Index i = n_coeffs - 2; i > 0; --i) {
+      result *= at;
+      result += C[i] * T(i);
+    }
+
+    return result;
+  }
+
   auto operator[](const Index &i) const { return coeffs()[i]; }
   auto &operator[](const Index &i) { return coeffs()[i]; }
 
@@ -268,6 +283,8 @@ class Map<const polynomials::DensePoly<T, DegreeAtCompileTime_,
           T, DegreeAtCompileTime_, MaxDegreeAtCompileTime_, Options>>> {
 public:
   using Scalar = T;
+  using Base = polynomials::DensePolyBase<Map<const polynomials::DensePoly<
+      T, DegreeAtCompileTime_, MaxDegreeAtCompileTime_, Options>>>;
   using Mapped =
       typename polynomials::DensePoly<T, DegreeAtCompileTime_,
                                       MaxDegreeAtCompileTime_, Options>;
@@ -299,4 +316,5 @@ protected:
 
 #include "src/dense_operators.hpp"
 #include "src/dense_scalar_operators.hpp"
+#include "src/roots.hpp"
 #endif
