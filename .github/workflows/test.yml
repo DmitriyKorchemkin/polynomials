@@ -30,11 +30,11 @@ jobs:
 
       - name: deps
         run: |
-          grep -R --no-filename -e '^deb' /etc/apt/ | grep -v 'updates\|security\|backports' | grep 'azure\.archive\.ubuntu\.com' | sed 's/^deb/deb-src/g' | sed 's/\[arch.*\]//g' | sort | uniq | sudo tee /etc/apt/sources.list.d/source.list
+          grep -R --no-filename -e '^deb.*azure\.archive\.ubuntu\.com' /etc/apt/ | grep -v 'updates\|security\|backports' | sed 's/^deb/deb-src/g;s/\[arch.*\]//g' | sort | uniq | sudo tee /etc/apt/sources.list.d/source.list
           sudo apt update && sudo apt build-dep libceres-dev && sudo apt install -y clang
           git clone https://github.com/ceres-solver/ceres-solver.git ${{github.workspace}}/ceres-solver
           ccache -s
-          cd ${{github.workspace}}/ceres-solver && mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Release -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF -DBUILD_BENCHMARKS=OFF && make -j `nproc` && sudo make install
+          cd ${{github.workspace}}/ceres-solver && git checkout 2a2b9bd6fa2a0ee62f58dceb786cb2dc3eb37630 && mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Release -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF -DBUILD_BENCHMARKS=OFF && make -j `nproc` && sudo make install
           ccache -s
 
       - name: cmake
