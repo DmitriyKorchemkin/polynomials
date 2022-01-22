@@ -1,5 +1,5 @@
 /******************************************************************************
-Copyright (c) 2021 Dmitriy Korchemkin
+Copyright (c) 2021-2022 Dmitriy Korchemkin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@ SOFTWARE.
 
 #include <Eigen/Dense>
 #include <iosfwd>
+#include <optional>
 
 #include "polynomials/assert.hpp"
 #include "polynomials/types.hpp"

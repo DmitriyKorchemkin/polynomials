@@ -1,5 +1,5 @@
 /******************************************************************************
-Copyright (c) 2021 Dmitriy Korchemkin
+Copyright (c) 2021-2022 Dmitriy Korchemkin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -46,8 +46,42 @@ struct polynomial_mul_trait<DensePolyBase<DerivedLhs>,
        Rhs::DegreeAtCompileTime == Dynamic)
           ? Dynamic
           : Lhs::DegreeAtCompileTime + Rhs::DegreeAtCompileTime;
+  static constexpr Index MaxDegreeAtCompileTime =
+      (Lhs::MaxDegreeAtCompileTime == Dynamic ||
+       Rhs::MaxDegreeAtCompileTime == Dynamic)
+          ? Dynamic
+          : Lhs::MaxDegreeAtCompileTime + Rhs::MaxDegreeAtCompileTime;
 
-  using ResultType = DensePoly<Scalar, DegreeAtCompileTime>;
+  using ResultType =
+      DensePoly<Scalar, DegreeAtCompileTime, MaxDegreeAtCompileTime>;
+};
+
+template <typename Lhs, typename Rhs> struct polynomial_div_trait;
+
+template <typename DerivedLhs, typename DerivedRhs>
+struct polynomial_div_trait<DensePolyBase<DerivedLhs>,
+                            DensePolyBase<DerivedRhs>> {
+  using Lhs = DensePolyBase<DerivedLhs>;
+  using Rhs = DensePolyBase<DerivedRhs>;
+  using Scalar =
+      typename Eigen::ScalarBinaryOpTraits<typename Lhs::Scalar,
+                                           typename Rhs::Scalar>::ReturnType;
+  static constexpr Index DegreeAtCompileTime =
+      (Lhs::DegreeAtCompileTime == Dynamic ||
+       Rhs::DegreeAtCompileTime == Dynamic)
+          ? Dynamic
+          : Lhs::DegreeAtCompileTime - Rhs::DegreeAtCompileTime;
+  static constexpr Index MaxDegreeAtCompileTime =
+      Lhs::MaxDegreeAtCompileTime == Dynamic
+          ? (Rhs::DegreeAtCompileTime == Dynamic
+                 ? Lhs::MaxDegreeAtCompileTime
+                 : Lhs::MaxDegreeAtCompileTime - Rhs::DegreeAtCompileTime)
+          : Dynamic;
+
+  using ResultType =
+      DensePoly<Scalar, DegreeAtCompileTime, MaxDegreeAtCompileTime>;
+  static_assert(Lhs::DegreeAtCompileTime >= Rhs::DegreeAtCompileTime ||
+                Lhs::DegreeAtCompileTime == Dynamic);
 };
 
 template <typename Lhs, typename Rhs> struct polynomial_sum_trait;
@@ -62,8 +96,11 @@ struct polynomial_sum_trait<DensePolyBase<DerivedLhs>,
                                            typename Rhs::Scalar>::ReturnType;
   static constexpr Index DegreeAtCompileTime =
       max_or_dynamic(Lhs::DegreeAtCompileTime, Rhs::DegreeAtCompileTime);
+  static constexpr Index MaxDegreeAtCompileTime =
+      max_or_dynamic(Lhs::MaxDegreeAtCompileTime, Rhs::MaxDegreeAtCompileTime);
 
-  using ResultType = DensePoly<Scalar, DegreeAtCompileTime>;
+  using ResultType =
+      DensePoly<Scalar, DegreeAtCompileTime, MaxDegreeAtCompileTime>;
 
   static constexpr Index CoeffsCompileTime = ResultType::CoeffsCompileTime;
 };

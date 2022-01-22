@@ -1,5 +1,5 @@
 # ##############################################################################
-# Copyright (c) 2021 Dmitriy Korchemkin
+# Copyright (c) 2021-2022 Dmitriy Korchemkin
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,6 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 # ##############################################################################
+cmake_minimum_required(VERSION 3.18)
 project("polynomials" LANGUAGES CXX)
 
 find_package(Eigen3 REQUIRED)
