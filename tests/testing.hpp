@@ -254,6 +254,21 @@ struct PolyPolyScalarTest {
 };
 
 template <template <typename...> typename Test, typename ScalarP1,
+          typename ScalarP3, typename ScalarP2, typename ScalarType>
+struct PolyPolyPolyScalarTest {
+
+  template <typename... Args> using P = PolyIterator<Test, Args...>;
+  template <typename... Args> using PP = PolyIterator<P, Args...>;
+  template <typename... Args> using PPP = PolyIterator<PP, Args...>;
+
+  static bool Check() {
+    return PPP<TestDegrees, std::tuple<ScalarP1>, Dummy, TestDegrees,
+               std::tuple<ScalarP2>, Dummy, TestDegrees, std::tuple<ScalarP3>,
+               Dummy, std::tuple<ScalarType, JetType<ScalarType>>>::Check();
+  }
+};
+
+template <template <typename...> typename Test, typename ScalarP1,
           typename ScalarType>
 struct PolyScalarScalarTest {
 

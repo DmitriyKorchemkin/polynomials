@@ -60,6 +60,38 @@ struct traits<Map<const polynomials::DensePoly<Scalar_, DegreeAtCompileTime,
 } // namespace Eigen
 
 namespace polynomials {
+template <typename T> struct is_dense_poly : std::false_type {};
+
+template <typename T>
+struct is_dense_poly<DensePolyBase<T>> : std::true_type {};
+
+constexpr Index max_num_coeffs(const Index MaxDegreeAtCompileTime) {
+  if (MaxDegreeAtCompileTime == Dynamic)
+    return Dynamic;
+  return MaxDegreeAtCompileTime + 1;
+}
+constexpr Index num_coeffs_compile_time(const Index DegreeAtCompileTime) {
+
+  if (DegreeAtCompileTime != Dynamic)
+    return DegreeAtCompileTime + 1;
+  return Dynamic;
+}
+
+constexpr Index max_or_dynamic(const Index &a, const Index &b) {
+  if (a == Dynamic || b == Dynamic)
+    return Dynamic;
+  return std::max(a, b);
+}
+constexpr Index min_or_dynamic(const Index &a, const Index &b) {
+  if (a == Dynamic || b == Dynamic)
+    return Dynamic;
+  return std::min(a, b);
+}
+} // namespace polynomials
+
+#include "src/dense_ops.hpp"
+
+namespace polynomials {
 
 template <typename Derived_> struct DensePolyBase {
   using Derived = Derived_;
@@ -103,6 +135,25 @@ template <typename Derived_> struct DensePolyBase {
     return result;
   }
 
+  const Scalar &leading_term() const { return coeffs()[degree()]; }
+
+  Scalar &leading_term() { return coeffs()[degree()]; }
+
+  template <typename Rhs> auto divmod(const Rhs &rhs) const {
+    using Lhs = DensePolyBase<Derived>;
+    using DivTraits = polynomial_div_trait<Lhs, Rhs>;
+    using Result = typename DivTraits::ResultType;
+    using Remainder = typename DivTraits::RemainderType;
+
+    using Op = DivOp<Lhs, Rhs>;
+    Op op(*this, rhs);
+
+    Result result;
+    Remainder remainder;
+    std::tie(result, remainder) = op();
+    return std::make_tuple(result, remainder);
+  }
+
   auto operator<<(const Scalar &s) { return coeffs().operator<<(s); }
 
   template <template <typename> typename Algorithm = QuotientRingMulX>
@@ -143,34 +194,6 @@ protected:
   auto &derived() const { return *static_cast<const Derived *>(this); }
   auto &derived() { return *static_cast<Derived *>(this); }
 };
-
-template <typename T> struct is_dense_poly : std::false_type {};
-
-template <typename T>
-struct is_dense_poly<DensePolyBase<T>> : std::true_type {};
-
-constexpr Index max_num_coeffs(const Index MaxDegreeAtCompileTime) {
-  if (MaxDegreeAtCompileTime == Dynamic)
-    return Dynamic;
-  return MaxDegreeAtCompileTime + 1;
-}
-constexpr Index num_coeffs_compile_time(const Index DegreeAtCompileTime) {
-
-  if (DegreeAtCompileTime != Dynamic)
-    return DegreeAtCompileTime + 1;
-  return Dynamic;
-}
-
-constexpr Index max_or_dynamic(const Index &a, const Index &b) {
-  if (a == Dynamic || b == Dynamic)
-    return Dynamic;
-  return std::max(a, b);
-}
-constexpr Index min_or_dynamic(const Index &a, const Index &b) {
-  if (a == Dynamic || b == Dynamic)
-    return Dynamic;
-  return std::min(a, b);
-}
 
 template <typename T, Index DegreeAtCompileTime_, Index MaxDegreeAtCompileTime_,
           int Options>
